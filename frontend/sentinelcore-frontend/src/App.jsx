@@ -1,6 +1,7 @@
 import { useState } from "react"
 import "./App.css"
 
+import Login from "./components/Login"
 import Dashboard from "./components/Dashboard"
 import Assets from "./components/Assets"
 import HealthMonitoring from "./components/HealthMonitoring"
@@ -9,6 +10,7 @@ import CloudMonitoring from "./components/CloudMonitoring"
 import NetworkMonitoring from "./components/NetworkMonitoring"
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [activePage, setActivePage] = useState("Dashboard")
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -50,10 +52,19 @@ function App() {
     setSidebarOpen(false)
   }
 
+  // Show Login page before authentication is implemented.
+  if (!isLoggedIn) {
+    return (
+      <Login onLogin={() => setIsLoggedIn(true)} />
+    )
+  }
+
   return (
     <div className="app">
+
       {/* Sidebar */}
       <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+
         <div className="sidebar-brand">
           <div className="brand-mark">S</div>
 
@@ -76,7 +87,9 @@ function App() {
               }`}
               onClick={() => handleNavigation(item.name)}
             >
-              <span className="nav-icon">{item.icon}</span>
+              <span className="nav-icon">
+                {item.icon}
+              </span>
 
               <span className="nav-text">
                 <strong>{item.name}</strong>
@@ -96,12 +109,15 @@ function App() {
             </div>
           </div>
         </div>
+
       </aside>
 
       {/* Main application */}
       <div className="main-area">
+
         {/* Top bar */}
         <header className="topbar">
+
           <button
             className="menu-button"
             onClick={() => setSidebarOpen(!sidebarOpen)}
@@ -119,19 +135,27 @@ function App() {
             <span className="status-dot"></span>
             <span>LIVE</span>
           </div>
+
         </header>
 
         {/* Page content */}
         <main className="main-content">
-          {activePage === "Dashboard" && <Dashboard />}
 
-          {activePage === "Assets" && <Assets />}
+          {activePage === "Dashboard" && (
+            <Dashboard />
+          )}
+
+          {activePage === "Assets" && (
+            <Assets />
+          )}
 
           {activePage === "Health Monitoring" && (
             <HealthMonitoring />
           )}
 
-          {activePage === "Alerts" && <Alerts />}
+          {activePage === "Alerts" && (
+            <Alerts />
+          )}
 
           {activePage === "Cloud Monitoring" && (
             <CloudMonitoring />
@@ -140,7 +164,9 @@ function App() {
           {activePage === "Network Monitoring" && (
             <NetworkMonitoring />
           )}
+
         </main>
+
       </div>
 
       {/* Mobile overlay */}
@@ -150,6 +176,7 @@ function App() {
           onClick={() => setSidebarOpen(false)}
         ></div>
       )}
+
     </div>
   )
 }

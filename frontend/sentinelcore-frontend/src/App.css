@@ -2724,3 +2724,639 @@ button {
     min-width: 650px;
   }
 }
+
+/* =========================
+   LOGIN PAGE
+   ========================= */
+
+.login-page {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background:
+    radial-gradient(circle at top left, rgba(0, 200, 255, 0.12), transparent 35%),
+    radial-gradient(circle at bottom right, rgba(120, 80, 255, 0.12), transparent 35%),
+    #050b14;
+  padding: 24px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+  padding: 42px 38px;
+  border: 1px solid rgba(0, 210, 255, 0.18);
+  border-radius: 18px;
+  background: rgba(12, 23, 40, 0.92);
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.45),
+    0 0 40px rgba(0, 200, 255, 0.06);
+  text-align: center;
+}
+
+.login-logo {
+  width: 58px;
+  height: 58px;
+  margin: 0 auto 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #00c6ff, #667eea);
+  color: white;
+  font-size: 30px;
+  font-weight: 800;
+  box-shadow: 0 8px 25px rgba(0, 198, 255, 0.25);
+}
+
+.login-card h1 {
+  margin: 0;
+  color: #f5f9ff;
+  font-size: 28px;
+  font-weight: 800;
+}
+
+.login-subtitle {
+  margin: 5px 0 32px;
+  color: #70839d;
+  font-size: 10px;
+  letter-spacing: 3px;
+  font-weight: 600;
+}
+
+.login-card h2 {
+  margin: 0 0 8px;
+  color: #ffffff;
+  font-size: 24px;
+}
+
+.login-description {
+  margin: 0 0 28px;
+  color: #8da1bc;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.login-field {
+  margin-bottom: 18px;
+  text-align: left;
+}
+
+.login-field label {
+  display: block;
+  margin-bottom: 8px;
+  color: #a9bbd2;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.login-field input {
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid rgba(120, 150, 190, 0.22);
+  border-radius: 9px;
+  outline: none;
+  background: #091321;
+  color: #ffffff;
+  font-size: 14px;
+  transition: 0.2s ease;
+}
+
+.login-field input::placeholder {
+  color: #52657e;
+}
+
+.login-field input:focus {
+  border-color: #00c6ff;
+  box-shadow: 0 0 0 3px rgba(0, 198, 255, 0.08);
+}
+
+.login-button {
+  width: 100%;
+  margin-top: 8px;
+  padding: 14px;
+  border: none;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #00c6ff, #667eea);
+  color: white;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.login-button:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 8px 25px rgba(0, 198, 255, 0.22);
+}
+
+.login-footer {
+  margin: 28px 0 0;
+  color: #52657e;
+  font-size: 11px;
+}
+
+/* =========================================================
+   LOGIN PAGE - ALIGNMENT FIX
+   ========================================================= */
+
+.login-page {
+  min-height: 100vh;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  box-sizing: border-box;
+}
+
+.login-container {
+  width: 100%;
+  max-width: 430px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.login-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.login-brand h1 {
+  margin: 0;
+  color: #f5f9ff;
+  font-size: 30px;
+  font-weight: 800;
+}
+
+.login-brand span {
+  display: block;
+  margin-top: 6px;
+  color: #70839d;
+  font-size: 10px;
+  letter-spacing: 3px;
+  font-weight: 600;
+}
+
+.login-logo {
+  margin: 0 auto 14px;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+  box-sizing: border-box;
+  text-align: center;
+}
+
+.login-header {
+  text-align: center;
+}
+
+.login-header p {
+  text-align: center;
+}
+
+.login-form {
+  width: 100%;
+}
+
+.login-field {
+  width: 100%;
+  text-align: left;
+}
+
+.login-field input {
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.login-options {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.remember-me {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.remember-me input {
+  margin: 0;
+}
+
+.forgot-password {
+  border: none;
+  background: transparent;
+  color: #00c6ff;
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 12px;
+}
+
+.login-button {
+  width: 100%;
+}
+
+.login-copyright {
+  margin: 18px 0 0;
+  text-align: center;
+  color: #52657e;
+  font-size: 11px;
+}
+
+@media (max-width: 480px) {
+  .login-page {
+    padding: 25px 15px;
+  }
+
+  .login-card {
+    padding: 30px 22px;
+  }
+
+  .login-brand h1 {
+    font-size: 26px;
+  }
+
+  .login-options {
+    align-items: flex-start;
+  }
+}
+
+/* =========================================================
+   LOGIN PAGE - COLOR ENHANCEMENT
+   ========================================================= */
+
+.login-page {
+  position: relative;
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at 15% 20%,
+      rgba(0, 198, 255, 0.20),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 85% 25%,
+      rgba(139, 92, 246, 0.20),
+      transparent 30%
+    ),
+    radial-gradient(
+      circle at 50% 90%,
+      rgba(34, 211, 238, 0.12),
+      transparent 35%
+    ),
+    linear-gradient(
+      135deg,
+      #030712 0%,
+      #071426 45%,
+      #0b1024 100%
+    );
+}
+
+/* Colorful glowing background */
+.login-page::before {
+  content: "";
+  position: absolute;
+  width: 420px;
+  height: 420px;
+
+  top: -180px;
+  left: -150px;
+
+  border-radius: 50%;
+
+  background: rgba(0, 198, 255, 0.10);
+
+  filter: blur(80px);
+
+  pointer-events: none;
+}
+
+.login-page::after {
+  content: "";
+  position: absolute;
+  width: 420px;
+  height: 420px;
+
+  right: -160px;
+  bottom: -180px;
+
+  border-radius: 50%;
+
+  background: rgba(139, 92, 246, 0.12);
+
+  filter: blur(90px);
+
+  pointer-events: none;
+}
+
+/* Keep login content above background effects */
+.login-container {
+  position: relative;
+  z-index: 2;
+}
+
+/* Logo */
+.login-logo {
+  background:
+    linear-gradient(
+      135deg,
+      #06b6d4 0%,
+      #0ea5e9 35%,
+      #6366f1 70%,
+      #8b5cf6 100%
+    );
+
+  box-shadow:
+    0 0 20px rgba(6, 182, 212, 0.35),
+    0 0 45px rgba(99, 102, 241, 0.20);
+}
+
+/* SentinelCore title */
+.login-brand h1 {
+  background:
+    linear-gradient(
+      90deg,
+      #ffffff,
+      #67e8f9,
+      #a5b4fc
+    );
+
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* SecureOps text */
+.login-brand span {
+  color: #67e8f9;
+}
+
+/* Login card */
+.login-card {
+  border: 1px solid rgba(56, 189, 248, 0.28);
+
+  background:
+    linear-gradient(
+      145deg,
+      rgba(15, 30, 52, 0.96),
+      rgba(8, 18, 35, 0.96)
+    );
+
+  box-shadow:
+    0 20px 60px rgba(0, 0, 0, 0.45),
+    0 0 30px rgba(34, 211, 238, 0.08),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+/* Secure Access */
+.login-eyebrow {
+  color: #22d3ee !important;
+  letter-spacing: 2px;
+}
+
+/* Welcome text */
+.login-header h2 {
+  background:
+    linear-gradient(
+      90deg,
+      #ffffff,
+      #bae6fd,
+      #c4b5fd
+    );
+
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Description */
+.login-header > p:last-child {
+  color: #9fb3cc;
+}
+
+/* Input fields */
+.login-field input {
+  border: 1px solid rgba(56, 189, 248, 0.20);
+
+  background:
+    linear-gradient(
+      135deg,
+      rgba(7, 20, 37, 0.95),
+      rgba(10, 25, 45, 0.95)
+    );
+
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.login-field input:hover {
+  border-color: rgba(56, 189, 248, 0.40);
+}
+
+.login-field input:focus {
+  border-color: #22d3ee;
+
+  box-shadow:
+    0 0 0 3px rgba(34, 211, 238, 0.10),
+    0 0 18px rgba(34, 211, 238, 0.10);
+
+  transform: translateY(-1px);
+}
+
+/* Labels */
+.login-field label {
+  color: #8dd9f7;
+}
+
+/* Remember me */
+.remember-me {
+  color: #b7c8dc;
+}
+
+.remember-me input {
+  accent-color: #06b6d4;
+}
+
+/* Forgot password */
+.forgot-password {
+  color: #38bdf8;
+}
+
+.forgot-password:hover {
+  color: #a78bfa;
+}
+
+/* Sign In button */
+.login-button {
+  background:
+    linear-gradient(
+      90deg,
+      #06b6d4 0%,
+      #0ea5e9 35%,
+      #6366f1 70%,
+      #8b5cf6 100%
+    );
+
+  box-shadow:
+    0 8px 25px rgba(14, 165, 233, 0.20);
+
+  transition:
+    transform 0.2s ease,
+    box-shadow 0.2s ease,
+    filter 0.2s ease;
+}
+
+.login-button:hover {
+  transform: translateY(-2px);
+
+  filter: brightness(1.08);
+
+  box-shadow:
+    0 10px 30px rgba(14, 165, 233, 0.30),
+    0 0 25px rgba(99, 102, 241, 0.18);
+}
+
+/* Protected environment text */
+.login-footer {
+  color: #5f7692;
+}
+
+/* Copyright */
+.login-copyright {
+  color: #63809d;
+}
+
+/* =========================================================
+   PASSWORD VISIBILITY TOGGLE
+   ========================================================= */
+
+.password-input-wrapper {
+  position: relative;
+  width: 100%;
+}
+
+.password-input-wrapper input {
+  width: 100%;
+  padding-right: 52px !important;
+}
+
+.password-toggle {
+  position: absolute;
+
+  right: 12px;
+  top: 50%;
+
+  transform: translateY(-50%);
+
+  width: 34px;
+  height: 34px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  padding: 0;
+
+  border: none;
+  border-radius: 8px;
+
+  background: transparent;
+
+  cursor: pointer;
+
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
+}
+
+.password-toggle:hover {
+  background: rgba(34, 211, 238, 0.08);
+}
+
+/* CSS Eye */
+.eye-icon {
+  position: relative;
+
+  width: 19px;
+  height: 12px;
+
+  display: block;
+
+  border: 2px solid #67e8f9;
+
+  border-radius: 80% 20%;
+
+  transform: rotate(45deg);
+
+  transition:
+    border-color 0.2s ease,
+    opacity 0.2s ease;
+}
+
+/* Eye pupil */
+.eye-icon::after {
+  content: "";
+
+  position: absolute;
+
+  width: 5px;
+  height: 5px;
+
+  left: 50%;
+  top: 50%;
+
+  transform: translate(-50%, -50%);
+
+  border-radius: 50%;
+
+  background: #67e8f9;
+
+  transition: background 0.2s ease;
+}
+
+/* Password visible */
+.eye-closed {
+  border-color: #a78bfa;
+  opacity: 0.85;
+}
+
+/* Slash when password is visible */
+.eye-closed::before {
+  content: "";
+
+  position: absolute;
+
+  width: 23px;
+  height: 2px;
+
+  left: -4px;
+  top: 50%;
+
+  background: #a78bfa;
+
+  transform: rotate(-45deg);
+}
+
+/* Hover effect */
+.password-toggle:hover .eye-icon {
+  border-color: #a78bfa;
+}
+
+.password-toggle:hover .eye-icon::after {
+  background: #a78bfa;
+}
