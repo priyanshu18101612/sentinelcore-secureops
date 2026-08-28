@@ -1,121 +1,156 @@
-import { useState } from 'react'
-import heroImg from './assets/hero.png'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import './App.css'
+import { useState } from "react"
+import "./App.css"
+
+import Dashboard from "./components/Dashboard"
+import Assets from "./components/Assets"
+import HealthMonitoring from "./components/HealthMonitoring"
+import Alerts from "./components/Alerts"
+import CloudMonitoring from "./components/CloudMonitoring"
+import NetworkMonitoring from "./components/NetworkMonitoring"
 
 function App() {
-  const [count, setCount] = useState(0)
+  const [activePage, setActivePage] = useState("Dashboard")
+  const [sidebarOpen, setSidebarOpen] = useState(false)
+
+  const navigationItems = [
+    {
+      name: "Dashboard",
+      icon: "◈",
+      description: "Overview",
+    },
+    {
+      name: "Assets",
+      icon: "▣",
+      description: "Asset Inventory",
+    },
+    {
+      name: "Health Monitoring",
+      icon: "◉",
+      description: "Infrastructure Health",
+    },
+    {
+      name: "Alerts",
+      icon: "⚠",
+      description: "Security Alerts",
+    },
+    {
+      name: "Cloud Monitoring",
+      icon: "☁",
+      description: "Cloud Resources",
+    },
+    {
+      name: "Network Monitoring",
+      icon: "⌁",
+      description: "Network Status",
+    },
+  ]
+
+  const handleNavigation = (page) => {
+    setActivePage(page)
+    setSidebarOpen(false)
+  }
 
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          type="button"
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
-        >
-          Count is {count}
-        </button>
-      </section>
+    <div className="app">
+      {/* Sidebar */}
+      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+        <div className="sidebar-brand">
+          <div className="brand-mark">S</div>
 
-      <div className="ticks"></div>
-
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
+          <div>
+            <h1>SentinelCore</h1>
+            <span>SecureOps</span>
+          </div>
         </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
+        <div className="sidebar-section-title">
+          MONITORING
+        </div>
+
+        <nav className="sidebar-nav">
+          {navigationItems.map((item) => (
+            <button
+              key={item.name}
+              className={`nav-item ${
+                activePage === item.name ? "active" : ""
+              }`}
+              onClick={() => handleNavigation(item.name)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+
+              <span className="nav-text">
+                <strong>{item.name}</strong>
+                <small>{item.description}</small>
+              </span>
+            </button>
+          ))}
+        </nav>
+
+        <div className="sidebar-footer">
+          <div className="system-indicator">
+            <span className="status-dot"></span>
+
+            <div>
+              <strong>System Operational</strong>
+              <small>All services online</small>
+            </div>
+          </div>
+        </div>
+      </aside>
+
+      {/* Main application */}
+      <div className="main-area">
+        {/* Top bar */}
+        <header className="topbar">
+          <button
+            className="menu-button"
+            onClick={() => setSidebarOpen(!sidebarOpen)}
+            aria-label="Toggle navigation"
+          >
+            ☰
+          </button>
+
+          <div className="topbar-title">
+            <span>INFRASTRUCTURE MONITORING</span>
+            <h2>{activePage}</h2>
+          </div>
+
+          <div className="topbar-status">
+            <span className="status-dot"></span>
+            <span>LIVE</span>
+          </div>
+        </header>
+
+        {/* Page content */}
+        <main className="main-content">
+          {activePage === "Dashboard" && <Dashboard />}
+
+          {activePage === "Assets" && <Assets />}
+
+          {activePage === "Health Monitoring" && (
+            <HealthMonitoring />
+          )}
+
+          {activePage === "Alerts" && <Alerts />}
+
+          {activePage === "Cloud Monitoring" && (
+            <CloudMonitoring />
+          )}
+
+          {activePage === "Network Monitoring" && (
+            <NetworkMonitoring />
+          )}
+        </main>
+      </div>
+
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="sidebar-overlay"
+          onClick={() => setSidebarOpen(false)}
+        ></div>
+      )}
+    </div>
   )
 }
 
