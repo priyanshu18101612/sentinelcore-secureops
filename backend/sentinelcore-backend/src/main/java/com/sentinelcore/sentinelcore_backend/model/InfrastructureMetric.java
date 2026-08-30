@@ -1,23 +1,74 @@
 package com.sentinelcore.sentinelcore_backend.model;
 
+import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "infrastructure_metrics")
 public class InfrastructureMetric {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "asset_id", nullable = false)
     private Long assetId;
+
+    @Column(name = "cpu_usage")
     private double cpuUsage;
+
+    @Column(name = "memory_usage")
     private double memoryUsage;
+
+    @Column(name = "disk_usage")
     private double diskUsage;
+
+    @Column(name = "network_in")
     private double networkIn;
+
+    @Column(name = "network_out")
     private double networkOut;
-    private String timestamp;
+
+    @Column(name = "timestamp", nullable = false)
+    private LocalDateTime timestamp;
 
     public InfrastructureMetric() {
     }
 
-    public InfrastructureMetric(Long id, Long assetId,
-                                 double cpuUsage, double memoryUsage,
-                                 double diskUsage, double networkIn,
-                                 double networkOut, String timestamp) {
+    public InfrastructureMetric(
+            Long id,
+            Long assetId,
+            double cpuUsage,
+            double memoryUsage,
+            double diskUsage,
+            double networkIn,
+            double networkOut,
+            String timestamp) {
+
+        this.id = id;
+        this.assetId = assetId;
+        this.cpuUsage = cpuUsage;
+        this.memoryUsage = memoryUsage;
+        this.diskUsage = diskUsage;
+        this.networkIn = networkIn;
+        this.networkOut = networkOut;
+
+        if (timestamp != null) {
+            this.timestamp = LocalDateTime.parse(timestamp);
+        }
+    }
+
+    public InfrastructureMetric(
+            Long id,
+            Long assetId,
+            double cpuUsage,
+            double memoryUsage,
+            double diskUsage,
+            double networkIn,
+            double networkOut,
+            LocalDateTime timestamp) {
+
         this.id = id;
         this.assetId = assetId;
         this.cpuUsage = cpuUsage;
@@ -85,10 +136,20 @@ public class InfrastructureMetric {
     }
 
     public String getTimestamp() {
-        return timestamp;
+        return timestamp != null ? timestamp.toString() : null;
     }
 
     public void setTimestamp(String timestamp) {
+        this.timestamp = timestamp != null
+                ? LocalDateTime.parse(timestamp)
+                : null;
+    }
+
+    public LocalDateTime getTimestampValue() {
+        return timestamp;
+    }
+
+    public void setTimestampValue(LocalDateTime timestamp) {
         this.timestamp = timestamp;
     }
 }

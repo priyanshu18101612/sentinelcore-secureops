@@ -1,7 +1,9 @@
 package com.sentinelcore.sentinelcore_backend.controller;
 
 import com.sentinelcore.sentinelcore_backend.model.Alert;
+import com.sentinelcore.sentinelcore_backend.model.InfrastructureMetric;
 import com.sentinelcore.sentinelcore_backend.service.AlertService;
+import com.sentinelcore.sentinelcore_backend.service.InfrastructureMonitoringService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,9 +14,15 @@ import java.util.List;
 public class AlertController {
 
     private final AlertService alertService;
+    private final InfrastructureMonitoringService infrastructureMonitoringService;
 
-    public AlertController(AlertService alertService) {
+    public AlertController(
+            AlertService alertService,
+            InfrastructureMonitoringService infrastructureMonitoringService) {
+
         this.alertService = alertService;
+        this.infrastructureMonitoringService =
+                infrastructureMonitoringService;
     }
 
     @GetMapping
@@ -24,6 +32,7 @@ public class AlertController {
 
     @GetMapping("/{id}")
     public ResponseEntity<Alert> getAlertById(@PathVariable Long id) {
+
         Alert alert = alertService.getAlertById(id);
 
         if (alert == null) {
@@ -34,12 +43,18 @@ public class AlertController {
     }
 
     @PostMapping
-    public ResponseEntity<Alert> createAlert(@RequestBody Alert alert) {
-        return ResponseEntity.ok(alertService.createAlert(alert));
+    public ResponseEntity<Alert> createAlert(
+            @RequestBody Alert alert) {
+
+        return ResponseEntity.ok(
+                alertService.createAlert(alert)
+        );
     }
 
     @PutMapping("/{id}/acknowledge")
-    public ResponseEntity<Alert> acknowledgeAlert(@PathVariable Long id) {
+    public ResponseEntity<Alert> acknowledgeAlert(
+            @PathVariable Long id) {
+
         Alert alert = alertService.acknowledgeAlert(id);
 
         if (alert == null) {
@@ -47,5 +62,17 @@ public class AlertController {
         }
 
         return ResponseEntity.ok(alert);
+    }
+
+    @PostMapping("/detect")
+    public ResponseEntity<List<Alert>> detectAnomalies() {
+
+        List<InfrastructureMetric> metrics =
+                infrastructureMonitoringService.getAllMetrics();
+
+        List<Alert> generatedAlerts =
+                alertService.detectAnomalies(metrics);
+
+        return ResponseEntity.ok(generatedAlerts);
     }
 }

@@ -7,52 +7,16 @@ import {
 function CloudMonitoring() {
 
   // --------------------------------------------------
-  // MOCK DATA
-  // Used only when backend/CORS is unavailable.
-  // --------------------------------------------------
-
-  const mockCloudResources = [
-    {
-      id: 1,
-      name: "Production EC2",
-      provider: "AWS",
-      type: "Compute",
-      status: "HEALTHY",
-      cpu: 38,
-      region: "us-east-1",
-    },
-    {
-      id: 2,
-      name: "Production RDS",
-      provider: "AWS",
-      type: "Database",
-      status: "HEALTHY",
-      cpu: 52,
-      region: "us-east-1",
-    },
-    {
-      id: 3,
-      name: "AKS Cluster",
-      provider: "Azure",
-      type: "Container",
-      status: "WARNING",
-      cpu: 78,
-      region: "East US",
-    },
-  ]
-
-  const mockCloudHealth = "HEALTHY"
-
-  // --------------------------------------------------
   // STATE
   // --------------------------------------------------
 
   const [cloudResources, setCloudResources] = useState([])
   const [cloudHealth, setCloudHealth] = useState("UNKNOWN")
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
   // --------------------------------------------------
-  // LOAD CLOUD DATA
+  // LOAD CLOUD DATA FROM BACKEND
   // --------------------------------------------------
 
   useEffect(() => {
@@ -61,45 +25,40 @@ function CloudMonitoring() {
 
       try {
 
+        setLoading(true)
+        setError("")
+
         const [resources, health] = await Promise.all([
           getCloudResources(),
           getCloudHealth(),
         ])
 
-        // Use backend resources when available.
-        if (
-          Array.isArray(resources) &&
-          resources.length > 0
-        ) {
-
+        // Use real backend resources
+        if (Array.isArray(resources)) {
           setCloudResources(resources)
-
         } else {
-
-          // Backend responded but returned no resources.
-          setCloudResources(mockCloudResources)
-
+          setCloudResources([])
         }
 
-        // Use backend health when available.
+        // Use real backend health
         if (health) {
-
           setCloudHealth(health)
-
         } else {
-
-          setCloudHealth(mockCloudHealth)
-
+          setCloudHealth("UNKNOWN")
         }
 
       } catch (error) {
 
-        console.log(
-          "Backend cloud unavailable. Using mock cloud data."
+        console.error(
+          "Failed to load cloud monitoring data:",
+          error
         )
 
-        setCloudResources(mockCloudResources)
-        setCloudHealth(mockCloudHealth)
+        setCloudResources([])
+        setCloudHealth("UNKNOWN")
+        setError(
+          "Unable to connect to cloud monitoring backend."
+        )
 
       } finally {
 
@@ -137,16 +96,23 @@ function CloudMonitoring() {
   // AVERAGE CPU
   // --------------------------------------------------
 
+  const resourcesWithCpu = cloudResources.filter(
+    (resource) =>
+      resource.cpu !== undefined &&
+      resource.cpu !== null &&
+      !isNaN(Number(resource.cpu))
+  )
+
   const averageCpu =
-    totalResources > 0
+    resourcesWithCpu.length > 0
       ? Math.round(
-          cloudResources.reduce(
+          resourcesWithCpu.reduce(
             (total, resource) =>
-              total + Number(resource.cpu || 0),
+              total + Number(resource.cpu),
             0
-          ) / totalResources
+          ) / resourcesWithCpu.length
         )
-      : 0
+      : null
 
   // --------------------------------------------------
   // PAGE
@@ -185,6 +151,20 @@ function CloudMonitoring() {
 
       </div>
 
+      {/* Error */}
+      {error && (
+        <section className="dashboard-section">
+
+          <div className="table-container">
+
+            <p className="loading-message">
+              {error}
+            </p>
+
+          </div>
+
+        </section>
+      )}
 
       {/* Loading */}
       {loading && (
@@ -203,9 +183,8 @@ function CloudMonitoring() {
 
       )}
 
-
       {/* Cloud overview */}
-      {!loading && (
+      {!loading && !error && (
 
         <section className="dashboard-section">
 
@@ -228,7 +207,6 @@ function CloudMonitoring() {
             </span>
 
           </div>
-
 
           <div className="health-summary">
 
@@ -253,7 +231,6 @@ function CloudMonitoring() {
 
             </div>
 
-
             {/* Warning */}
             <div className="health-card cloud-warning">
 
@@ -274,7 +251,6 @@ function CloudMonitoring() {
               </small>
 
             </div>
-
 
             {/* Critical */}
             <div className="health-card cloud-critical">
@@ -297,7 +273,6 @@ function CloudMonitoring() {
 
             </div>
 
-
             {/* Average CPU */}
             <div className="health-card cloud-cpu">
 
@@ -310,7 +285,9 @@ function CloudMonitoring() {
               </h3>
 
               <p>
-                {averageCpu}%
+                {averageCpu !== null
+                  ? `${averageCpu}%`
+                  : "N/A"}
               </p>
 
               <small>
@@ -320,7 +297,6 @@ function CloudMonitoring() {
             </div>
 
           </div>
-
 
           {/* Overall cloud health */}
           <div className="section-heading">
@@ -351,9 +327,8 @@ function CloudMonitoring() {
 
       )}
 
-
       {/* Cloud resources */}
-      {!loading && (
+      {!loading && !error && (
 
         <section className="dashboard-section">
 
@@ -376,7 +351,6 @@ function CloudMonitoring() {
             </span>
 
           </div>
-
 
           {cloudResources.length === 0 ? (
 
@@ -426,7 +400,6 @@ function CloudMonitoring() {
 
                 </thead>
 
-
                 <tbody>
 
                   {cloudResources.map((resource) => (
@@ -442,7 +415,7 @@ function CloudMonitoring() {
                       </td>
 
                       <td>
-                        {resource.type}
+                        {resource.resourceType}
                       </td>
 
                       <td>
@@ -463,7 +436,10 @@ function CloudMonitoring() {
                       </td>
 
                       <td>
-                        {resource.cpu ?? 0}%
+                        {resource.cpu !== undefined &&
+                        resource.cpu !== null
+                          ? `${resource.cpu}%`
+                          : "N/A"}
                       </td>
 
                     </tr>

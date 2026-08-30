@@ -1,15 +1,37 @@
 package com.sentinelcore.sentinelcore_backend.model;
 
+import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "network_metrics")
 public class NetworkMetric {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "network_name", nullable = false, length = 100)
     private String networkName;
+
+    @Column(nullable = false, length = 50)
     private String status;
+
+    @Column(name = "network_in")
     private Double networkIn;
+
+    @Column(name = "network_out")
     private Double networkOut;
+
+    @Column
     private Double latency;
+
+    @Column(name = "packet_loss")
     private Double packetLoss;
-    private String timestamp;
+
+    @Column(nullable = false)
+    private LocalDateTime timestamp;
 
     public NetworkMetric() {
     }
@@ -25,7 +47,7 @@ public class NetworkMetric {
         this.networkOut = networkOut;
         this.latency = latency;
         this.packetLoss = packetLoss;
-        this.timestamp = timestamp;
+        this.timestamp = LocalDateTime.parse(timestamp);
     }
 
     public Long getId() {
@@ -84,11 +106,11 @@ public class NetworkMetric {
         this.packetLoss = packetLoss;
     }
 
-    public String getTimestamp() {
+    public LocalDateTime getTimestamp() {
         return timestamp;
     }
 
-    public void setTimestamp(String timestamp) {
+    public void setTimestamp(LocalDateTime timestamp) {
         this.timestamp = timestamp;
     }
 }

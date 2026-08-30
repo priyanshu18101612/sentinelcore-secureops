@@ -1,94 +1,87 @@
 package com.sentinelcore.sentinelcore_backend.service;
 
 import com.sentinelcore.sentinelcore_backend.model.Asset;
+import com.sentinelcore.sentinelcore_backend.repository.AssetRepository;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class AssetService {
 
-    private final List<Asset> assets = new ArrayList<>();
+    private final AssetRepository assetRepository;
 
-    public AssetService() {
-        assets.add(new Asset(
-                1L,
-                "EC2-Server-01",
-                "VIRTUAL_MACHINE",
-                "10.0.1.10",
-                "AWS Mumbai",
-                "HEALTHY"
-        ));
-
-        assets.add(new Asset(
-                2L,
-                "Storage-01",
-                "STORAGE",
-                "10.0.1.20",
-                "AWS Mumbai",
-                "HEALTHY"
-        ));
+    public AssetService(AssetRepository assetRepository) {
+        this.assetRepository = assetRepository;
     }
 
+    // Get all assets from PostgreSQL
     public List<Asset> getAllAssets() {
+        List<Asset> assets = assetRepository.findAll();
+
+        // Status is currently not stored in the database.
+        // Set a default value for the frontend.
+        for (Asset asset : assets) {
+            if (asset.getStatus() == null) {
+                asset.setStatus("HEALTHY");
+            }
+        }
+
         return assets;
     }
 
+    // Get asset by ID from PostgreSQL
     public Asset getAssetById(Long id) {
-        return assets.stream()
-                .filter(asset -> asset.getId().equals(id))
-                .findFirst()
-                .orElse(null);
+
+        Asset asset = assetRepository.findById(id).orElse(null);
+
+        if (asset != null && asset.getStatus() == null) {
+            asset.setStatus("HEALTHY");
+        }
+
+        return asset;
     }
 
+    // Create asset in PostgreSQL
     public Asset createAsset(Asset asset) {
 
-    long newId = assets.stream()
-            .mapToLong(Asset::getId)
-            .max()
-            .orElse(0L) + 1;
+        if (asset.getStatus() == null) {
+            asset.setStatus("HEALTHY");
+        }
 
-    asset.setId(newId);
-
-    if (asset.getStatus() == null) {
-        asset.setStatus("HEALTHY");
+        return assetRepository.save(asset);
     }
 
-    assets.add(asset);
-
-    return asset;
-    }
-
+    // Update asset in PostgreSQL
     public Asset updateAsset(Long id, Asset updatedAsset) {
 
-    Asset existingAsset = getAssetById(id);
+        Asset existingAsset = assetRepository.findById(id).orElse(null);
 
-    if (existingAsset == null) {
-        return null;
+        if (existingAsset == null) {
+            return null;
+        }
+
+        existingAsset.setName(updatedAsset.getName());
+        existingAsset.setType(updatedAsset.getType());
+        existingAsset.setIpAddress(updatedAsset.getIpAddress());
+        existingAsset.setLocation(updatedAsset.getLocation());
+
+        if (updatedAsset.getStatus() != null) {
+            existingAsset.setStatus(updatedAsset.getStatus());
+        }
+
+        return assetRepository.save(existingAsset);
     }
 
-    existingAsset.setName(updatedAsset.getName());
-    existingAsset.setType(updatedAsset.getType());
-    existingAsset.setIpAddress(updatedAsset.getIpAddress());
-    existingAsset.setLocation(updatedAsset.getLocation());
-
-    if (updatedAsset.getStatus() != null) {
-        existingAsset.setStatus(updatedAsset.getStatus());
-    }
-
-    return existingAsset;
-    }
-
+    // Delete asset from PostgreSQL
     public boolean deleteAsset(Long id) {
 
-    Asset asset = getAssetById(id);
+        if (!assetRepository.existsById(id)) {
+            return false;
+        }
 
-    if (asset == null) {
-        return false;
-    }
+        assetRepository.deleteById(id);
 
-    assets.remove(asset);
-    return true;
+        return true;
     }
 }

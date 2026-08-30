@@ -1,5 +1,9 @@
 const API_BASE_URL = "http://localhost:8080/api"
 
+// ===============================
+// ASSETS
+// ===============================
+
 export async function getAssets() {
   const response = await fetch(`${API_BASE_URL}/assets`)
 
@@ -19,6 +23,11 @@ export async function getAsset(id) {
 
   return response.json()
 }
+
+
+// ===============================
+// INFRASTRUCTURE MONITORING
+// ===============================
 
 export async function getMetrics(assetId) {
   const response = await fetch(
@@ -44,8 +53,15 @@ export async function getHealth(assetId) {
   return response.json()
 }
 
+
+// ===============================
+// CLOUD MONITORING
+// ===============================
+
 export async function getCloudResources() {
-  const response = await fetch(`${API_BASE_URL}/cloud/resources`)
+  const response = await fetch(
+    `${API_BASE_URL}/cloud/resources`
+  )
 
   if (!response.ok) {
     throw new Error("Failed to fetch cloud resources")
@@ -55,27 +71,40 @@ export async function getCloudResources() {
 }
 
 export async function getCloudHealth() {
-  const response = await fetch(`${API_BASE_URL}/cloud/health`)
+  const response = await fetch(
+    `${API_BASE_URL}/cloud/health`
+  )
 
   if (!response.ok) {
     throw new Error("Failed to fetch cloud health")
   }
 
-  return response.json()
+  // Backend returns plain text: HEALTHY / UNHEALTHY
+  return response.text()
 }
 
+
+// ===============================
+// NETWORK MONITORING
+// ===============================
+
 export async function getNetworkStatus() {
-  const response = await fetch(`${API_BASE_URL}/network/status`)
+  const response = await fetch(
+    `${API_BASE_URL}/network/status`
+  )
 
   if (!response.ok) {
     throw new Error("Failed to fetch network status")
   }
 
-  return response.json()
+  // Backend returns plain text: UP / DOWN
+  return response.text()
 }
 
 export async function getNetworkMetrics() {
-  const response = await fetch(`${API_BASE_URL}/network/metrics`)
+  const response = await fetch(
+    `${API_BASE_URL}/network/metrics`
+  )
 
   if (!response.ok) {
     throw new Error("Failed to fetch network metrics")
@@ -84,8 +113,15 @@ export async function getNetworkMetrics() {
   return response.json()
 }
 
+
+// ===============================
+// ALERTS
+// ===============================
+
 export async function getAlerts() {
-  const response = await fetch(`${API_BASE_URL}/alerts`)
+  const response = await fetch(
+    `${API_BASE_URL}/alerts`
+  )
 
   if (!response.ok) {
     throw new Error("Failed to fetch alerts")
@@ -95,7 +131,9 @@ export async function getAlerts() {
 }
 
 export async function getAlert(id) {
-  const response = await fetch(`${API_BASE_URL}/alerts/${id}`)
+  const response = await fetch(
+    `${API_BASE_URL}/alerts/${id}`
+  )
 
   if (!response.ok) {
     throw new Error("Failed to fetch alert")

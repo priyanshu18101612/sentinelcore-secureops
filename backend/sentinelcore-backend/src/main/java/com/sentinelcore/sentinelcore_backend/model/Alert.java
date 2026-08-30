@@ -1,30 +1,66 @@
 package com.sentinelcore.sentinelcore_backend.model;
 
+import jakarta.persistence.*;
+
+import java.time.LocalDateTime;
+
+@Entity
+@Table(name = "alerts")
 public class Alert {
 
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
+
+    @Column(name = "asset_id")
     private Long assetId;
+
+    @Column(name = "alert_type", nullable = false, length = 50)
     private String alertType;
+
+    @Column(nullable = false, length = 20)
     private String severity;
+
+    @Column(nullable = false, columnDefinition = "TEXT")
     private String message;
+
+    @Column(nullable = false, length = 30)
     private String status;
-    private String createdAt;
-    private String acknowledgedAt;
+
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
+
+    @Column(name = "acknowledged_at")
+    private LocalDateTime acknowledgedAt;
 
     public Alert() {
     }
 
-    public Alert(Long id, Long assetId, String alertType,
-                 String severity, String message, String status,
-                 String createdAt, String acknowledgedAt) {
+    // Constructor used by the existing AlertService
+    public Alert(
+            Long id,
+            Long assetId,
+            String alertType,
+            String severity,
+            String message,
+            String status,
+            String createdAt,
+            String acknowledgedAt) {
+
         this.id = id;
         this.assetId = assetId;
         this.alertType = alertType;
         this.severity = severity;
         this.message = message;
         this.status = status;
-        this.createdAt = createdAt;
-        this.acknowledgedAt = acknowledgedAt;
+
+        if (createdAt != null) {
+            this.createdAt = LocalDateTime.parse(createdAt);
+        }
+
+        if (acknowledgedAt != null) {
+            this.acknowledgedAt = LocalDateTime.parse(acknowledgedAt);
+        }
     }
 
     public Long getId() {
@@ -76,18 +112,38 @@ public class Alert {
     }
 
     public String getCreatedAt() {
-        return createdAt;
+        return createdAt != null ? createdAt.toString() : null;
     }
 
     public void setCreatedAt(String createdAt) {
-        this.createdAt = createdAt;
+        this.createdAt = createdAt != null
+                ? LocalDateTime.parse(createdAt)
+                : null;
     }
 
     public String getAcknowledgedAt() {
-        return acknowledgedAt;
+        return acknowledgedAt != null ? acknowledgedAt.toString() : null;
     }
 
     public void setAcknowledgedAt(String acknowledgedAt) {
+        this.acknowledgedAt = acknowledgedAt != null
+                ? LocalDateTime.parse(acknowledgedAt)
+                : null;
+    }
+
+    public LocalDateTime getCreatedAtValue() {
+        return createdAt;
+    }
+
+    public void setCreatedAtValue(LocalDateTime createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public LocalDateTime getAcknowledgedAtValue() {
+        return acknowledgedAt;
+    }
+
+    public void setAcknowledgedAtValue(LocalDateTime acknowledgedAt) {
         this.acknowledgedAt = acknowledgedAt;
     }
 }

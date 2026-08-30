@@ -1,83 +1,65 @@
 package com.sentinelcore.sentinelcore_backend.service;
 
-import com.sentinelcore.sentinelcore_backend.model.InfrastructureMetric;
-import org.springframework.stereotype.Service;
 import com.sentinelcore.sentinelcore_backend.model.AssetHealth;
+import com.sentinelcore.sentinelcore_backend.model.InfrastructureMetric;
+import com.sentinelcore.sentinelcore_backend.repository.InfrastructureMetricRepository;
+import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
 import java.util.List;
 
 @Service
 public class InfrastructureMonitoringService {
 
-    private final List<InfrastructureMetric> metrics = new ArrayList<>();
+    private final InfrastructureMetricRepository metricRepository;
 
-    public InfrastructureMonitoringService() {
+    public InfrastructureMonitoringService(
+            InfrastructureMetricRepository metricRepository) {
 
-        metrics.add(new InfrastructureMetric(
-                1L,
-                1L,
-                45.50,
-                62.30,
-                71.20,
-                120.50,
-                95.40,
-                "2026-08-30T10:30:00"
-        ));
-
-        metrics.add(new InfrastructureMetric(
-                2L,
-                2L,
-                32.80,
-                48.60,
-                55.10,
-                85.20,
-                70.30,
-                "2026-08-30T10:30:00"
-        ));
+        this.metricRepository = metricRepository;
     }
 
+    // Get all metrics from PostgreSQL
     public List<InfrastructureMetric> getAllMetrics() {
-        return metrics;
+        return metricRepository.findAll();
     }
 
+    // Get metric by ID from PostgreSQL
     public InfrastructureMetric getMetricById(Long id) {
-        return metrics.stream()
-                .filter(metric -> metric.getId().equals(id))
-                .findFirst()
-                .orElse(null);
+        return metricRepository.findById(id).orElse(null);
     }
 
+    // Get metrics for a specific asset from PostgreSQL
     public List<InfrastructureMetric> getMetricsByAssetId(Long assetId) {
-        return metrics.stream()
-                .filter(metric -> metric.getAssetId().equals(assetId))
-                .toList();
+        return metricRepository.findByAssetId(assetId);
     }
 
+    // Calculate asset health from database metrics
     public AssetHealth getAssetHealth(Long assetId) {
 
-    InfrastructureMetric metric = metrics.stream()
-            .filter(m -> m.getAssetId().equals(assetId))
-            .findFirst()
-            .orElse(null);
+        List<InfrastructureMetric> assetMetrics =
+                metricRepository.findByAssetId(assetId);
 
-    if (metric == null) {
-        return null;
-    }
+        if (assetMetrics.isEmpty()) {
+            return null;
+        }
 
-    String status = "HEALTHY";
+        // Use the most recent metric
+        InfrastructureMetric metric =
+                assetMetrics.get(assetMetrics.size() - 1);
 
-    if (metric.getCpuUsage() > 80 ||
-        metric.getMemoryUsage() > 85 ||
-        metric.getDiskUsage() > 90) {
+        String status = "HEALTHY";
 
-        status = "UNHEALTHY";
-    }
+        if (metric.getCpuUsage() > 80 ||
+            metric.getMemoryUsage() > 85 ||
+            metric.getDiskUsage() > 90) {
 
-    return new AssetHealth(
-            assetId,
-            status,
-            "2026-08-30T10:30:00"
-    );
+            status = "UNHEALTHY";
+        }
+
+        return new AssetHealth(
+                assetId,
+                status,
+                metric.getTimestamp()
+        );
     }
 }
