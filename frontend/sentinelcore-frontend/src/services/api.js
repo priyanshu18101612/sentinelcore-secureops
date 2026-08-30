@@ -22,7 +22,7 @@ export async function getAsset(id) {
 
 export async function getMetrics(assetId) {
   const response = await fetch(
-    `${API_BASE_URL}/monitoring/${assetId}/metrics`
+    `${API_BASE_URL}/infrastructure/assets/${assetId}/metrics`
   )
 
   if (!response.ok) {
@@ -34,7 +34,7 @@ export async function getMetrics(assetId) {
 
 export async function getHealth(assetId) {
   const response = await fetch(
-    `${API_BASE_URL}/monitoring/${assetId}/health`
+    `${API_BASE_URL}/infrastructure/assets/${assetId}/health`
   )
 
   if (!response.ok) {

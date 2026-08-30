@@ -76,3 +76,59 @@ html,
 body {
   overflow-x: hidden;
 }
+/* Login messages */
+
+.login-message {
+  padding: 12px 14px;
+  margin-bottom: 18px;
+  border-radius: 8px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.login-error {
+  color: #ff9b9b;
+  background: rgba(255, 70, 70, 0.08);
+  border: 1px solid rgba(255, 70, 70, 0.25);
+}
+
+.login-success {
+  color: #72f5b2;
+  background: rgba(40, 220, 130, 0.08);
+  border: 1px solid rgba(40, 220, 130, 0.25);
+}
+
+/* Password hint */
+
+.password-hint {
+  display: block;
+  margin-top: 7px;
+  color: #71819d;
+  font-size: 11px;
+}
+
+/* Login / Register switch */
+
+.login-switch {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 6px;
+  margin-top: 22px;
+  font-size: 13px;
+  color: #71819d;
+}
+
+.login-switch button {
+  border: none;
+  background: transparent;
+  color: #20d9ff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.login-switch button:hover {
+  text-decoration: underline;
+}

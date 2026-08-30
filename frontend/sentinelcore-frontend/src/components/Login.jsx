@@ -1,21 +1,158 @@
 import { useState } from "react"
 
 function Login({ onLogin }) {
+  const [isRegistering, setIsRegistering] = useState(false)
+
+  const [name, setName] = useState("")
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
-  const [showPassword, setShowPassword] = useState(false)
+  const [confirmPassword, setConfirmPassword] = useState("")
 
-  const handleSubmit = (e) => {
+  const [showPassword, setShowPassword] = useState(false)
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false)
+
+  const [message, setMessage] = useState("")
+  const [messageType, setMessageType] = useState("")
+
+  const showMessage = (text, type) => {
+    setMessage(text)
+    setMessageType(type)
+  }
+
+  // =========================
+  // REGISTER
+  // =========================
+  const handleRegister = (e) => {
     e.preventDefault()
 
-    // Temporary frontend-only login.
-    // Real authentication will be connected to the backend later.
-    console.log("Login submitted:", { email, password })
+    const trimmedName = name.trim()
+    const trimmedEmail = email.trim().toLowerCase()
 
-    // Temporarily enter the dashboard.
-    if (onLogin) {
-      onLogin()
+    if (!trimmedName) {
+      showMessage("Please enter your full name.", "error")
+      return
     }
+
+    if (password.length < 6) {
+      showMessage(
+        "Password must contain at least 6 characters.",
+        "error"
+      )
+      return
+    }
+
+    if (password !== confirmPassword) {
+      showMessage(
+        "Passwords do not match.",
+        "error"
+      )
+      return
+    }
+
+    const users = JSON.parse(
+      localStorage.getItem("sentinelcore_users") || "[]"
+    )
+
+    const existingUser = users.find(
+      (user) => user.email === trimmedEmail
+    )
+
+    if (existingUser) {
+      showMessage(
+        "An account with this email already exists.",
+        "error"
+      )
+      return
+    }
+
+    const newUser = {
+      id: Date.now(),
+      name: trimmedName,
+      email: trimmedEmail,
+      password: password,
+    }
+
+    users.push(newUser)
+
+    localStorage.setItem(
+      "sentinelcore_users",
+      JSON.stringify(users)
+    )
+
+    // Automatically log the newly created user in
+    localStorage.setItem(
+      "sentinelcore_current_user",
+      JSON.stringify(newUser)
+    )
+
+    showMessage(
+      "Account created successfully.",
+      "success"
+    )
+
+    setTimeout(() => {
+      if (onLogin) {
+        onLogin()
+      }
+    }, 500)
+  }
+
+  // =========================
+  // LOGIN
+  // =========================
+  const handleLogin = (e) => {
+    e.preventDefault()
+
+    const trimmedEmail = email.trim().toLowerCase()
+
+    const users = JSON.parse(
+      localStorage.getItem("sentinelcore_users") || "[]"
+    )
+
+    const user = users.find(
+      (item) =>
+        item.email === trimmedEmail &&
+        item.password === password
+    )
+
+    if (!user) {
+      showMessage(
+        "Invalid email or password.",
+        "error"
+      )
+      return
+    }
+
+    // Save currently logged-in user
+    localStorage.setItem(
+      "sentinelcore_current_user",
+      JSON.stringify(user)
+    )
+
+    showMessage(
+      "Login successful. Welcome back!",
+      "success"
+    )
+
+    setTimeout(() => {
+      if (onLogin) {
+        onLogin()
+      }
+    }, 400)
+  }
+
+  // =========================
+  // SWITCH LOGIN / REGISTER
+  // =========================
+  const switchMode = () => {
+    setIsRegistering(!isRegistering)
+
+    setName("")
+    setEmail("")
+    setPassword("")
+    setConfirmPassword("")
+    setMessage("")
+    setMessageType("")
   }
 
   return (
@@ -25,9 +162,9 @@ function Login({ onLogin }) {
       <div className="login-background">
         <div className="login-glow login-glow-one"></div>
         <div className="login-glow login-glow-two"></div>
+        <div className="login-grid"></div>
       </div>
 
-      {/* Login container */}
       <div className="login-container">
 
         {/* Brand */}
@@ -37,37 +174,81 @@ function Login({ onLogin }) {
             S
           </div>
 
-          <div className="login-brand-text">
-            <h1>SentinelCore</h1>
-            <span>SECUREOPS</span>
-          </div>
+          <h1>SentinelCore</h1>
+
+          <span>SECUREOPS</span>
 
         </div>
 
-        {/* Login card */}
+        {/* Login / Register card */}
         <div className="login-card">
 
           <div className="login-header">
 
             <p className="login-eyebrow">
-              SECURE ACCESS
+              {isRegistering
+                ? "CREATE ACCOUNT"
+                : "SECURE ACCESS"}
             </p>
 
             <h2>
-              Welcome back
+              {isRegistering
+                ? "Create your account"
+                : "Welcome back"}
             </h2>
 
-            <p>
-              Sign in to access your infrastructure
-              monitoring dashboard.
+            <p className="login-description">
+              {isRegistering
+                ? "Create your SentinelCore account to monitor and secure your infrastructure."
+                : "Sign in to access your infrastructure monitoring dashboard."}
             </p>
 
           </div>
 
+          {/* Message */}
+          {message && (
+            <div
+              className={`login-message ${
+                messageType === "error"
+                  ? "login-error"
+                  : "login-success"
+              }`}
+            >
+              {message}
+            </div>
+          )}
+
           <form
-            onSubmit={handleSubmit}
+            onSubmit={
+              isRegistering
+                ? handleRegister
+                : handleLogin
+            }
             className="login-form"
           >
+
+            {/* Name - Register only */}
+            {isRegistering && (
+              <div className="login-field">
+
+                <label htmlFor="name">
+                  Full name
+                </label>
+
+                <input
+                  id="name"
+                  type="text"
+                  placeholder="Enter your full name"
+                  value={name}
+                  onChange={(e) =>
+                    setName(e.target.value)
+                  }
+                  autoComplete="name"
+                  required
+                />
+
+              </div>
+            )}
 
             {/* Email */}
             <div className="login-field">
@@ -79,9 +260,12 @@ function Login({ onLogin }) {
               <input
                 id="email"
                 type="email"
-                placeholder="Enter your email"
+                placeholder="you@example.com"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) =>
+                  setEmail(e.target.value)
+                }
+                autoComplete="email"
                 required
               />
 
@@ -98,76 +282,183 @@ function Login({ onLogin }) {
 
                 <input
                   id="password"
-                  type={showPassword ? "text" : "password"}
+                  type={
+                    showPassword
+                      ? "text"
+                      : "password"
+                  }
                   placeholder="Enter your password"
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) =>
+                    setPassword(e.target.value)
+                  }
+                  autoComplete={
+                    isRegistering
+                      ? "new-password"
+                      : "current-password"
+                  }
                   required
                 />
 
                 <button
                   type="button"
                   className="password-toggle"
-                  onClick={() => setShowPassword(!showPassword)}
+                  onClick={() =>
+                    setShowPassword(!showPassword)
+                  }
                   aria-label={
                     showPassword
                       ? "Hide password"
                       : "Show password"
                   }
                 >
-                  <span
-                    className={`eye-icon ${
-                      showPassword ? "eye-closed" : ""
-                    }`}
-                  ></span>
+                  {showPassword ? "Hide" : "Show"}
                 </button>
 
               </div>
 
+              {isRegistering && (
+                <span className="password-hint">
+                  Use at least 6 characters.
+                </span>
+              )}
+
             </div>
+
+            {/* Confirm password */}
+            {isRegistering && (
+              <div className="login-field">
+
+                <label htmlFor="confirmPassword">
+                  Confirm password
+                </label>
+
+                <div className="password-input-wrapper">
+
+                  <input
+                    id="confirmPassword"
+                    type={
+                      showConfirmPassword
+                        ? "text"
+                        : "password"
+                    }
+                    placeholder="Re-enter your password"
+                    value={confirmPassword}
+                    onChange={(e) =>
+                      setConfirmPassword(
+                        e.target.value
+                      )
+                    }
+                    autoComplete="new-password"
+                    required
+                  />
+
+                  <button
+                    type="button"
+                    className="password-toggle"
+                    onClick={() =>
+                      setShowConfirmPassword(
+                        !showConfirmPassword
+                      )
+                    }
+                    aria-label={
+                      showConfirmPassword
+                        ? "Hide password"
+                        : "Show password"
+                    }
+                  >
+                    {showConfirmPassword
+                      ? "Hide"
+                      : "Show"}
+                  </button>
+
+                </div>
+
+              </div>
+            )}
 
             {/* Login options */}
-            <div className="login-options">
+            {!isRegistering && (
+              <div className="login-options">
 
-              <label className="remember-me">
-                <input type="checkbox" />
-                <span>Remember me</span>
-              </label>
+                <label className="remember-me">
 
-              <button
-                type="button"
-                className="forgot-password"
-                onClick={() =>
-                  console.log("Forgot password clicked")
-                }
-              >
-                Forgot password?
-              </button>
+                  <input
+                    type="checkbox"
+                  />
 
-            </div>
+                  <span>
+                    Remember me
+                  </span>
 
-            {/* Sign in */}
+                </label>
+
+                <button
+                  type="button"
+                  className="forgot-password"
+                  onClick={() =>
+                    showMessage(
+                      "Password recovery will be connected to the backend.",
+                      "success"
+                    )
+                  }
+                >
+                  Forgot password?
+                </button>
+
+              </div>
+            )}
+
+            {/* Submit */}
             <button
               type="submit"
               className="login-button"
             >
-              Sign In
+              {isRegistering
+                ? "Create Account"
+                : "Sign In"}
             </button>
 
           </form>
 
-          {/* Card footer */}
+          {/* Switch login/register */}
+          <div className="login-switch">
+
+            <span>
+              {isRegistering
+                ? "Already have an account?"
+                : "Don't have an account?"}
+            </span>
+
+            <button
+              type="button"
+              onClick={switchMode}
+            >
+              {isRegistering
+                ? "Sign in"
+                : "Create account"}
+            </button>
+
+          </div>
+
           <div className="login-footer">
             <span>
-              Protected infrastructure environment
+              SentinelCore SecureOps
+            </span>
+
+            <span>
+              •
+            </span>
+
+            <span>
+              Infrastructure Security Platform
             </span>
           </div>
 
         </div>
 
-        {/* Copyright */}
         <p className="login-copyright">
-          SentinelCore SecureOps • Infrastructure Security Platform
+          © 2026 SentinelCore SecureOps
         </p>
 
       </div>
