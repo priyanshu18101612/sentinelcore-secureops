@@ -1,59 +1,49 @@
+import { useEffect, useState } from "react"
+import { getAlerts } from "../services/api"
+
 function Alerts() {
-  // Temporary mock data for Milestone 1.
-  // Later this will come from GET /api/alerts
-  const alerts = [
-    {
-      id: 1,
-      asset: "DB-SRV-12",
-      metric: "CPU Usage",
-      value: 94,
-      threshold: 90,
-      severity: "CRITICAL",
-      status: "RESOLVED",
-      message: "CPU usage exceeded the critical threshold.",
-      autoScaled: true,
-      time: "5 min ago",
-    },
-    {
-      id: 2,
-      asset: "APP-47",
-      metric: "Memory Usage",
-      value: 82,
-      threshold: 80,
-      severity: "WARNING",
-      status: "ACTIVE",
-      message: "Memory usage is above the warning threshold.",
-      autoScaled: false,
-      time: "12 min ago",
-    },
-    {
-      id: 3,
-      asset: "DB-05",
-      metric: "Disk Usage",
-      value: 91,
-      threshold: 85,
-      severity: "CRITICAL",
-      status: "ACTIVE",
-      message: "Disk usage is critically high.",
-      autoScaled: false,
-      time: "18 min ago",
-    },
-  ]
+  const [alerts, setAlerts] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadAlerts() {
+      try {
+        const data = await getAlerts()
+
+        setAlerts(
+          Array.isArray(data) ? data : []
+        )
+      } catch (error) {
+        console.error("Failed to fetch alerts:", error)
+        setAlerts([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadAlerts()
+  }, [])
 
   const activeAlerts = alerts.filter(
-    (alert) => alert.status === "ACTIVE"
+    (alert) =>
+      alert.status?.toUpperCase() === "ACTIVE" ||
+      alert.status?.toUpperCase() === "OPEN"
   ).length
 
   const criticalAlerts = alerts.filter(
-    (alert) => alert.severity === "CRITICAL"
+    (alert) =>
+      alert.severity?.toUpperCase() === "CRITICAL"
   ).length
 
   const warningAlerts = alerts.filter(
-    (alert) => alert.severity === "WARNING"
+    (alert) =>
+      alert.severity?.toUpperCase() === "WARNING"
   ).length
 
   const resolvedAlerts = alerts.filter(
-    (alert) => alert.status === "RESOLVED"
+    (alert) =>
+      alert.status?.toUpperCase() === "RESOLVED" ||
+      alert.status?.toUpperCase() === "CLOSED"
   ).length
 
   return (
@@ -78,207 +68,248 @@ function Alerts() {
         </div>
       </div>
 
-      {/* Alert overview */}
-      <section className="dashboard-section">
-
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">ALERT OVERVIEW</p>
-
-            <h2>Security Events</h2>
+      {/* Loading */}
+      {loading && (
+        <section className="dashboard-section">
+          <div className="table-container">
+            <p className="loading-message">
+              Loading alerts...
+            </p>
           </div>
+        </section>
+      )}
 
-          <span className="alert-count">
-            {activeAlerts} ACTIVE
-          </span>
-        </div>
+      {!loading && (
+        <>
+          {/* Alert overview */}
+          <section className="dashboard-section">
 
-        <div className="alert-summary">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">ALERT OVERVIEW</p>
 
-          <div className="alert-card alert-card-active">
-            <div className="alert-card-icon">
-              !
+                <h2>Security Events</h2>
+              </div>
+
+              <span className="alert-count">
+                {activeAlerts} ACTIVE
+              </span>
             </div>
 
-            <h3>Active Alerts</h3>
+            <div className="alert-summary">
 
-            <p>{activeAlerts}</p>
-
-            <small>Require attention</small>
-          </div>
-
-          <div className="alert-card alert-card-critical">
-            <div className="alert-card-icon">
-              !
-            </div>
-
-            <h3>Critical</h3>
-
-            <p>{criticalAlerts}</p>
-
-            <small>High severity events</small>
-          </div>
-
-          <div className="alert-card alert-card-warning">
-            <div className="alert-card-icon">
-              !
-            </div>
-
-            <h3>Warnings</h3>
-
-            <p>{warningAlerts}</p>
-
-            <small>Threshold warnings</small>
-          </div>
-
-          <div className="alert-card alert-card-resolved">
-            <div className="alert-card-icon">
-              ✓
-            </div>
-
-            <h3>Resolved</h3>
-
-            <p>{resolvedAlerts}</p>
-
-            <small>Previously detected</small>
-          </div>
-
-        </div>
-      </section>
-
-      {/* Recent alerts */}
-      <section className="dashboard-section">
-
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">RECENT EVENTS</p>
-
-            <h2>Alert Activity</h2>
-          </div>
-
-          <span className="section-badge">
-            LIVE EVENTS
-          </span>
-        </div>
-
-        <div className="alerts-panel">
-
-          <div className="recent-alerts">
-
-            {alerts.map((alert) => (
-              <div
-                className="recent-alert"
-                key={alert.id}
-              >
-
-                <div
-                  className={`alert-severity ${alert.severity.toLowerCase()}`}
-                ></div>
-
-                <div className="alert-content">
-
-                  <strong>
-                    {alert.asset} — {alert.metric}
-                  </strong>
-
-                  <p>
-                    {alert.message}
-                  </p>
-
-                  <small>
-                    {alert.value}% detected ·
-                    Threshold {alert.threshold}% ·
-                    {alert.time}
-                  </small>
-
+              {/* Active */}
+              <div className="alert-card alert-card-active">
+                <div className="alert-card-icon">
+                  !
                 </div>
 
-                <span
-                  className={`alert-label ${alert.severity.toLowerCase()}`}
-                >
-                  {alert.severity}
-                </span>
+                <h3>Active Alerts</h3>
+
+                <p>{activeAlerts}</p>
+
+                <small>Require attention</small>
+              </div>
+
+              {/* Critical */}
+              <div className="alert-card alert-card-critical">
+                <div className="alert-card-icon">
+                  !
+                </div>
+
+                <h3>Critical</h3>
+
+                <p>{criticalAlerts}</p>
+
+                <small>High severity events</small>
+              </div>
+
+              {/* Warning */}
+              <div className="alert-card alert-card-warning">
+                <div className="alert-card-icon">
+                  !
+                </div>
+
+                <h3>Warnings</h3>
+
+                <p>{warningAlerts}</p>
+
+                <small>Threshold warnings</small>
+              </div>
+
+              {/* Resolved */}
+              <div className="alert-card alert-card-resolved">
+                <div className="alert-card-icon">
+                  ✓
+                </div>
+
+                <h3>Resolved</h3>
+
+                <p>{resolvedAlerts}</p>
+
+                <small>Previously detected</small>
+              </div>
+
+            </div>
+
+          </section>
+
+          {/* Recent alerts */}
+          <section className="dashboard-section">
+
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">RECENT EVENTS</p>
+
+                <h2>Alert Activity</h2>
+              </div>
+
+              <span className="section-badge">
+                LIVE EVENTS
+              </span>
+            </div>
+
+            <div className="alerts-panel">
+
+              <div className="recent-alerts">
+
+                {alerts.length === 0 ? (
+                  <p className="loading-message">
+                    No alerts found.
+                  </p>
+                ) : (
+                  alerts.map((alert) => (
+                    <div
+                      className="recent-alert"
+                      key={alert.id}
+                    >
+
+                      <div
+                        className={`alert-severity ${
+                          alert.severity?.toLowerCase() ||
+                          "unknown"
+                        }`}
+                      ></div>
+
+                      <div className="alert-content">
+
+                        <strong>
+                          Asset #{alert.assetId} —{" "}
+                          {alert.alertType || "Alert"}
+                        </strong>
+
+                        <p>
+                          {alert.message ||
+                            "Infrastructure alert detected."}
+                        </p>
+
+                        <small>
+                          Severity:{" "}
+                          {alert.severity || "UNKNOWN"}{" "}
+                          · Status:{" "}
+                          {alert.status || "UNKNOWN"}
+                        </small>
+
+                      </div>
+
+                      <span
+                        className={`alert-label ${
+                          alert.severity?.toLowerCase() ||
+                          "unknown"
+                        }`}
+                      >
+                        {alert.severity || "UNKNOWN"}
+                      </span>
+
+                    </div>
+                  ))
+                )}
 
               </div>
-            ))}
 
-          </div>
+            </div>
+          </section>
 
-        </div>
-      </section>
+          {/* Alert details table */}
+          <section className="dashboard-section">
 
-      {/* Alert details table */}
-      <section className="dashboard-section">
+            <div className="section-heading">
+              <div>
+                <p className="eyebrow">EVENT DETAILS</p>
 
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">EVENT DETAILS</p>
+                <h2>Alert History</h2>
+              </div>
+            </div>
 
-            <h2>Alert History</h2>
-          </div>
-        </div>
+            {alerts.length === 0 ? (
+              <div className="table-container">
+                <p className="loading-message">
+                  No alerts found.
+                </p>
+              </div>
+            ) : (
+              <div className="asset-table-wrapper">
 
-        <div className="asset-table-wrapper">
+                <table className="asset-table">
 
-          <table className="asset-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Asset</th>
+                      <th>Alert Type</th>
+                      <th>Severity</th>
+                      <th>Status</th>
+                    </tr>
+                  </thead>
 
-            <thead>
-              <tr>
-                <th>Asset</th>
-                <th>Metric</th>
-                <th>Value</th>
-                <th>Threshold</th>
-                <th>Severity</th>
-                <th>Status</th>
-                <th>Response</th>
-              </tr>
-            </thead>
+                  <tbody>
+                    {alerts.map((alert) => (
+                      <tr key={alert.id}>
 
-            <tbody>
-              {alerts.map((alert) => (
-                <tr key={alert.id}>
+                        <td>{alert.id}</td>
 
-                  <td>{alert.asset}</td>
+                        <td>
+                          Asset #{alert.assetId}
+                        </td>
 
-                  <td>{alert.metric}</td>
+                        <td>
+                          {alert.alertType || "N/A"}
+                        </td>
 
-                  <td>{alert.value}%</td>
+                        <td>
+                          <span
+                            className={`status-badge ${
+                              alert.severity?.toLowerCase() ||
+                              "unknown"
+                            }`}
+                          >
+                            {alert.severity || "UNKNOWN"}
+                          </span>
+                        </td>
 
-                  <td>{alert.threshold}%</td>
+                        <td>
+                          <span
+                            className={`alert-status ${
+                              alert.status?.toLowerCase() ||
+                              "unknown"
+                            }`}
+                          >
+                            {alert.status || "UNKNOWN"}
+                          </span>
+                        </td>
 
-                  <td>
-                    <span
-                      className={`status-badge ${alert.severity.toLowerCase()}`}
-                    >
-                      {alert.severity}
-                    </span>
-                  </td>
+                      </tr>
+                    ))}
+                  </tbody>
 
-                  <td>
-                    <span
-                      className={`alert-status ${
-                        alert.status.toLowerCase()
-                      }`}
-                    >
-                      {alert.status}
-                    </span>
-                  </td>
+                </table>
 
-                  <td>
-                    {alert.autoScaled
-                      ? "Auto-scaled"
-                      : "No action"}
-                  </td>
+              </div>
+            )}
 
-                </tr>
-              ))}
-            </tbody>
-
-          </table>
-
-        </div>
-
-      </section>
+          </section>
+        </>
+      )}
 
     </div>
   )

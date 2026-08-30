@@ -1,55 +1,78 @@
-function HealthMonitoring() {
-  // Temporary mock data for Milestone 1.
-  // This will later come from the backend health API.
-  const healthData = [
-    {
-      id: 1,
-      name: "SRV-12",
-      type: "Server",
-      status: "HEALTHY",
-      checkedAt: "2026-08-26 16:30",
-    },
-    {
-      id: 2,
-      name: "APP-47",
-      type: "Server",
-      status: "WARNING",
-      checkedAt: "2026-08-26 16:29",
-    },
-    {
-      id: 3,
-      name: "DB-05",
-      type: "Database",
-      status: "CRITICAL",
-      checkedAt: "2026-08-26 16:28",
-    },
-    {
-      id: 4,
-      name: "WEB-01",
-      type: "Server",
-      status: "HEALTHY",
-      checkedAt: "2026-08-26 16:30",
-    },
-  ]
+import { useEffect, useState } from "react"
+import { getAssets, getHealth } from "../services/api"
 
-  // Calculate health counts from the mock data
+function HealthMonitoring() {
+  const [healthData, setHealthData] = useState([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function loadHealthData() {
+      try {
+        // Get all registered assets
+        const assets = await getAssets()
+
+        // Get health information for each asset
+        const healthResults = await Promise.all(
+          assets.map(async (asset) => {
+            try {
+              const health = await getHealth(asset.id)
+
+              return {
+                id: asset.id,
+                name: asset.name,
+                type: asset.type,
+                status: health.status || "UNKNOWN",
+                checkedAt: health.checkedAt || "N/A",
+              }
+            } catch (error) {
+              console.error(
+                `Failed to fetch health for asset ${asset.id}:`,
+                error
+              )
+
+              return {
+                id: asset.id,
+                name: asset.name,
+                type: asset.type,
+                status: "UNKNOWN",
+                checkedAt: "N/A",
+              }
+            }
+          })
+        )
+
+        setHealthData(healthResults)
+      } catch (error) {
+        console.error("Failed to fetch health data:", error)
+        setHealthData([])
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    loadHealthData()
+  }, [])
+
+  // Calculate health counts
   const healthyCount = healthData.filter(
-    (asset) => asset.status === "HEALTHY"
+    (asset) => asset.status?.toUpperCase() === "HEALTHY"
   ).length
 
   const warningCount = healthData.filter(
-    (asset) => asset.status === "WARNING"
+    (asset) => asset.status?.toUpperCase() === "WARNING"
   ).length
 
   const criticalCount = healthData.filter(
-    (asset) => asset.status === "CRITICAL"
+    (asset) => asset.status?.toUpperCase() === "CRITICAL"
   ).length
 
   const totalAssets = healthData.length
 
-  const healthPercentage = Math.round(
-    (healthyCount / totalAssets) * 100
-  )
+  // Calculate percentage of healthy assets
+  const healthPercentage =
+    totalAssets > 0
+      ? Math.round((healthyCount / totalAssets) * 100)
+      : 0
 
   return (
     <div className="health-page">
@@ -73,148 +96,179 @@ function HealthMonitoring() {
         </div>
       </div>
 
+      {/* Loading */}
+      {loading && (
+        <section className="dashboard-section">
+          <div className="asset-table-wrapper">
+            <p className="loading-message">
+              Loading health data...
+            </p>
+          </div>
+        </section>
+      )}
+
       {/* Health overview */}
-      <section className="dashboard-section">
+      {!loading && (
+        <section className="dashboard-section">
 
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">SYSTEM STATUS</p>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">SYSTEM STATUS</p>
 
-            <h2>Health Overview</h2>
-          </div>
-
-          <span className="section-badge">
-            {totalAssets} ASSETS
-          </span>
-        </div>
-
-        <div className="health-summary">
-
-          <div className="health-card health-card-healthy">
-            <div className="health-card-icon">
-              ●
+              <h2>Health Overview</h2>
             </div>
 
-            <h3>Healthy</h3>
-
-            <p>{healthyCount}</p>
-
-            <small>
-              Operational assets
-            </small>
+            <span className="section-badge">
+              {totalAssets} ASSETS
+            </span>
           </div>
 
-          <div className="health-card health-card-warning">
-            <div className="health-card-icon">
-              ●
+          <div className="health-summary">
+
+            {/* Healthy */}
+            <div className="health-card health-card-healthy">
+              <div className="health-card-icon">
+                ●
+              </div>
+
+              <h3>Healthy</h3>
+
+              <p>{healthyCount}</p>
+
+              <small>
+                Operational assets
+              </small>
             </div>
 
-            <h3>Warning</h3>
+            {/* Warning */}
+            <div className="health-card health-card-warning">
+              <div className="health-card-icon">
+                ●
+              </div>
 
-            <p>{warningCount}</p>
+              <h3>Warning</h3>
 
-            <small>
-              Needs attention
-            </small>
-          </div>
+              <p>{warningCount}</p>
 
-          <div className="health-card health-card-critical">
-            <div className="health-card-icon">
-              ●
+              <small>
+                Needs attention
+              </small>
             </div>
 
-            <h3>Critical</h3>
+            {/* Critical */}
+            <div className="health-card health-card-critical">
+              <div className="health-card-icon">
+                ●
+              </div>
 
-            <p>{criticalCount}</p>
+              <h3>Critical</h3>
 
-            <small>
-              Immediate attention
-            </small>
-          </div>
+              <p>{criticalCount}</p>
 
-          <div className="health-card health-card-overall">
-            <div className="health-card-icon">
-              ◈
+              <small>
+                Immediate attention
+              </small>
             </div>
 
-            <h3>Health Score</h3>
+            {/* Health Score */}
+            <div className="health-card health-card-overall">
+              <div className="health-card-icon">
+                ◈
+              </div>
 
-            <p>{healthPercentage}%</p>
+              <h3>Health Score</h3>
 
-            <small>
-              Overall healthy assets
-            </small>
+              <p>{healthPercentage}%</p>
+
+              <small>
+                Overall healthy assets
+              </small>
+            </div>
+
           </div>
-
-        </div>
-      </section>
+        </section>
+      )}
 
       {/* Asset health table */}
-      <section className="dashboard-section">
+      {!loading && (
+        <section className="dashboard-section">
 
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">MONITORED ASSETS</p>
+          <div className="section-heading">
+            <div>
+              <p className="eyebrow">MONITORED ASSETS</p>
 
-            <h2>Infrastructure Status</h2>
+              <h2>Infrastructure Status</h2>
+            </div>
+
+            <span className="section-badge">
+              LIVE STATUS
+            </span>
           </div>
 
-          <span className="section-badge">
-            LIVE STATUS
-          </span>
-        </div>
+          {healthData.length === 0 ? (
+            <div className="asset-table-wrapper">
+              <p className="loading-message">
+                No health data found.
+              </p>
+            </div>
+          ) : (
+            <div className="asset-table-wrapper">
 
-        <div className="asset-table-wrapper">
+              <table className="asset-table">
 
-          <table className="asset-table">
+                <thead>
+                  <tr>
+                    <th>ID</th>
+                    <th>Asset</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Last Checked</th>
+                  </tr>
+                </thead>
 
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Asset</th>
-                <th>Type</th>
-                <th>Status</th>
-                <th>Last Checked</th>
-              </tr>
-            </thead>
+                <tbody>
+                  {healthData.map((asset) => (
+                    <tr key={asset.id}>
 
-            <tbody>
-              {healthData.map((asset) => (
-                <tr key={asset.id}>
+                      <td>
+                        #{String(asset.id).padStart(2, "0")}
+                      </td>
 
-                  <td>
-                    #{String(asset.id).padStart(2, "0")}
-                  </td>
+                      <td>
+                        <strong className="asset-name">
+                          {asset.name}
+                        </strong>
+                      </td>
 
-                  <td>
-                    {asset.name}
-                  </td>
+                      <td>
+                        {asset.type}
+                      </td>
 
-                  <td>
-                    {asset.type}
-                  </td>
+                      <td>
+                        <span
+                          className={`status-badge ${
+                            asset.status?.toLowerCase() || "unknown"
+                          }`}
+                        >
+                          {asset.status}
+                        </span>
+                      </td>
 
-                  <td>
-                    <span
-                      className={`status-badge ${asset.status.toLowerCase()}`}
-                    >
-                      {asset.status}
-                    </span>
-                  </td>
+                      <td>
+                        {asset.checkedAt}
+                      </td>
 
-                  <td>
-                    {asset.checkedAt}
-                  </td>
+                    </tr>
+                  ))}
+                </tbody>
 
-                </tr>
-              ))}
-            </tbody>
+              </table>
 
-          </table>
+            </div>
+          )}
 
-        </div>
-
-      </section>
+        </section>
+      )}
 
     </div>
   )

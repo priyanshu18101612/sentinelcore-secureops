@@ -1,6 +1,7 @@
 import { useState } from "react"
 import "./App.css"
 
+import Login from "./components/Login"
 import Dashboard from "./components/Dashboard"
 import Assets from "./components/Assets"
 import HealthMonitoring from "./components/HealthMonitoring"
@@ -9,6 +10,13 @@ import CloudMonitoring from "./components/CloudMonitoring"
 import NetworkMonitoring from "./components/NetworkMonitoring"
 
 function App() {
+  // Get the currently logged-in user from localStorage
+  const [currentUser, setCurrentUser] = useState(() => {
+    const savedUser = localStorage.getItem("sentinelcore_current_user")
+
+    return savedUser ? JSON.parse(savedUser) : null
+  })
+
   const [activePage, setActivePage] = useState("Dashboard")
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
@@ -50,17 +58,51 @@ function App() {
     setSidebarOpen(false)
   }
 
+  // Login
+  const handleLogin = () => {
+    const savedUser = localStorage.getItem(
+      "sentinelcore_current_user"
+    )
+
+    if (savedUser) {
+      setCurrentUser(JSON.parse(savedUser))
+    }
+  }
+
+  // Logout
+  const handleLogout = () => {
+    localStorage.removeItem("sentinelcore_current_user")
+
+    setCurrentUser(null)
+    setActivePage("Dashboard")
+  }
+
+  // Show Login page when no user is logged in
+  if (!currentUser) {
+    return <Login onLogin={handleLogin} />
+  }
+
   return (
     <div className="app">
+
       {/* Sidebar */}
-      <aside className={`sidebar ${sidebarOpen ? "sidebar-open" : ""}`}>
+      <aside
+        className={`sidebar ${
+          sidebarOpen ? "sidebar-open" : ""
+        }`}
+      >
+
         <div className="sidebar-brand">
-          <div className="brand-mark">S</div>
+
+          <div className="brand-mark">
+            S
+          </div>
 
           <div>
             <h1>SentinelCore</h1>
             <span>SecureOps</span>
           </div>
+
         </div>
 
         <div className="sidebar-section-title">
@@ -68,70 +110,160 @@ function App() {
         </div>
 
         <nav className="sidebar-nav">
+
           {navigationItems.map((item) => (
             <button
               key={item.name}
               className={`nav-item ${
-                activePage === item.name ? "active" : ""
+                activePage === item.name
+                  ? "active"
+                  : ""
               }`}
-              onClick={() => handleNavigation(item.name)}
+              onClick={() =>
+                handleNavigation(item.name)
+              }
             >
-              <span className="nav-icon">{item.icon}</span>
+
+              <span className="nav-icon">
+                {item.icon}
+              </span>
 
               <span className="nav-text">
-                <strong>{item.name}</strong>
-                <small>{item.description}</small>
+
+                <strong>
+                  {item.name}
+                </strong>
+
+                <small>
+                  {item.description}
+                </small>
+
               </span>
+
             </button>
           ))}
+
         </nav>
 
         <div className="sidebar-footer">
+
           <div className="system-indicator">
+
             <span className="status-dot"></span>
 
             <div>
-              <strong>System Operational</strong>
-              <small>All services online</small>
+              <strong>
+                System Operational
+              </strong>
+
+              <small>
+                All services online
+              </small>
             </div>
+
           </div>
+
         </div>
+
       </aside>
 
       {/* Main application */}
       <div className="main-area">
+
         {/* Top bar */}
         <header className="topbar">
+
           <button
             className="menu-button"
-            onClick={() => setSidebarOpen(!sidebarOpen)}
+            onClick={() =>
+              setSidebarOpen(!sidebarOpen)
+            }
             aria-label="Toggle navigation"
           >
             ☰
           </button>
 
           <div className="topbar-title">
-            <span>INFRASTRUCTURE MONITORING</span>
-            <h2>{activePage}</h2>
+
+            <span>
+              INFRASTRUCTURE MONITORING
+            </span>
+
+            <h2>
+              {activePage}
+            </h2>
+
           </div>
 
-          <div className="topbar-status">
-            <span className="status-dot"></span>
-            <span>LIVE</span>
+          {/* Right side of topbar */}
+          <div className="topbar-right">
+
+            {/* Live status */}
+            <div className="topbar-status">
+
+              <span className="status-dot"></span>
+
+              <span>
+                LIVE
+              </span>
+
+            </div>
+
+            {/* Current user */}
+            <div className="user-profile">
+
+              <div className="user-avatar">
+                {currentUser.name
+                  ? currentUser.name
+                      .charAt(0)
+                      .toUpperCase()
+                  : "U"}
+              </div>
+
+              <div className="user-details">
+
+                <strong>
+                  {currentUser.name}
+                </strong>
+
+                <small>
+                  {currentUser.email}
+                </small>
+
+              </div>
+
+              <button
+                className="logout-button"
+                onClick={handleLogout}
+                title="Logout"
+              >
+                Logout
+              </button>
+
+            </div>
+
           </div>
+
         </header>
 
         {/* Page content */}
         <main className="main-content">
-          {activePage === "Dashboard" && <Dashboard />}
 
-          {activePage === "Assets" && <Assets />}
+          {activePage === "Dashboard" && (
+            <Dashboard />
+          )}
+
+          {activePage === "Assets" && (
+            <Assets />
+          )}
 
           {activePage === "Health Monitoring" && (
             <HealthMonitoring />
           )}
 
-          {activePage === "Alerts" && <Alerts />}
+          {activePage === "Alerts" && (
+            <Alerts />
+          )}
 
           {activePage === "Cloud Monitoring" && (
             <CloudMonitoring />
@@ -140,16 +272,21 @@ function App() {
           {activePage === "Network Monitoring" && (
             <NetworkMonitoring />
           )}
+
         </main>
+
       </div>
 
       {/* Mobile overlay */}
       {sidebarOpen && (
         <div
           className="sidebar-overlay"
-          onClick={() => setSidebarOpen(false)}
+          onClick={() =>
+            setSidebarOpen(false)
+          }
         ></div>
       )}
+
     </div>
   )
 }

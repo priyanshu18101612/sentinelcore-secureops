@@ -1,228 +1,462 @@
-function CloudMonitoring() {
-  // Temporary mock data for Milestone 1.
-  // Later this will come from:
-  // GET /api/cloud/resources
-  // GET /api/cloud/health
+import { useEffect, useState } from "react"
+import {
+  getCloudResources,
+  getCloudHealth,
+} from "../services/api"
 
-  const cloudResources = [
-    {
-      id: 1,
-      name: "Production EC2",
-      provider: "AWS",
-      type: "Compute",
-      status: "HEALTHY",
-      cpu: 38,
-      region: "us-east-1",
-    },
-    {
-      id: 2,
-      name: "Production RDS",
-      provider: "AWS",
-      type: "Database",
-      status: "HEALTHY",
-      cpu: 52,
-      region: "us-east-1",
-    },
-    {
-      id: 3,
-      name: "AKS Cluster",
-      provider: "Azure",
-      type: "Container",
-      status: "WARNING",
-      cpu: 78,
-      region: "East US",
-    },
-  ]
+function CloudMonitoring() {
+
+  // --------------------------------------------------
+  // STATE
+  // --------------------------------------------------
+
+  const [cloudResources, setCloudResources] = useState([])
+  const [cloudHealth, setCloudHealth] = useState("UNKNOWN")
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
+
+  // --------------------------------------------------
+  // LOAD CLOUD DATA FROM BACKEND
+  // --------------------------------------------------
+
+  useEffect(() => {
+
+    async function loadCloudData() {
+
+      try {
+
+        setLoading(true)
+        setError("")
+
+        const [resources, health] = await Promise.all([
+          getCloudResources(),
+          getCloudHealth(),
+        ])
+
+        // Use real backend resources
+        if (Array.isArray(resources)) {
+          setCloudResources(resources)
+        } else {
+          setCloudResources([])
+        }
+
+        // Use real backend health
+        if (health) {
+          setCloudHealth(health)
+        } else {
+          setCloudHealth("UNKNOWN")
+        }
+
+      } catch (error) {
+
+        console.error(
+          "Failed to load cloud monitoring data:",
+          error
+        )
+
+        setCloudResources([])
+        setCloudHealth("UNKNOWN")
+        setError(
+          "Unable to connect to cloud monitoring backend."
+        )
+
+      } finally {
+
+        setLoading(false)
+
+      }
+    }
+
+    loadCloudData()
+
+  }, [])
+
+  // --------------------------------------------------
+  // CLOUD COUNTS
+  // --------------------------------------------------
 
   const healthyResources = cloudResources.filter(
-    (resource) => resource.status === "HEALTHY"
+    (resource) =>
+      resource.status?.toUpperCase() === "HEALTHY"
   ).length
 
   const warningResources = cloudResources.filter(
-    (resource) => resource.status === "WARNING"
+    (resource) =>
+      resource.status?.toUpperCase() === "WARNING"
   ).length
 
   const criticalResources = cloudResources.filter(
-    (resource) => resource.status === "CRITICAL"
+    (resource) =>
+      resource.status?.toUpperCase() === "CRITICAL"
   ).length
 
   const totalResources = cloudResources.length
 
-  const averageCpu = Math.round(
-    cloudResources.reduce(
-      (total, resource) => total + resource.cpu,
-      0
-    ) / totalResources
+  // --------------------------------------------------
+  // AVERAGE CPU
+  // --------------------------------------------------
+
+  const resourcesWithCpu = cloudResources.filter(
+    (resource) =>
+      resource.cpu !== undefined &&
+      resource.cpu !== null &&
+      !isNaN(Number(resource.cpu))
   )
+
+  const averageCpu =
+    resourcesWithCpu.length > 0
+      ? Math.round(
+          resourcesWithCpu.reduce(
+            (total, resource) =>
+              total + Number(resource.cpu),
+            0
+          ) / resourcesWithCpu.length
+        )
+      : null
+
+  // --------------------------------------------------
+  // PAGE
+  // --------------------------------------------------
 
   return (
     <div className="cloud-page">
 
       {/* Page introduction */}
       <div className="dashboard-intro">
-        <div>
-          <p className="eyebrow">CLOUD INFRASTRUCTURE</p>
 
-          <h1>Cloud Monitoring</h1>
+        <div>
+
+          <p className="eyebrow">
+            CLOUD INFRASTRUCTURE
+          </p>
+
+          <h1>
+            Cloud Monitoring
+          </h1>
 
           <p className="dashboard-subtitle">
             Monitor cloud resources, infrastructure health,
             and resource utilization across connected providers.
           </p>
+
         </div>
 
         <div className="dashboard-live">
+
           <span className="status-dot"></span>
+
           CLOUD MONITORING
+
         </div>
+
       </div>
 
+      {/* Error */}
+      {error && (
+        <section className="dashboard-section">
+
+          <div className="table-container">
+
+            <p className="loading-message">
+              {error}
+            </p>
+
+          </div>
+
+        </section>
+      )}
+
+      {/* Loading */}
+      {loading && (
+
+        <section className="dashboard-section">
+
+          <div className="table-container">
+
+            <p className="loading-message">
+              Loading cloud resources...
+            </p>
+
+          </div>
+
+        </section>
+
+      )}
+
       {/* Cloud overview */}
-      <section className="dashboard-section">
+      {!loading && !error && (
 
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">RESOURCE OVERVIEW</p>
+        <section className="dashboard-section">
 
-            <h2>Cloud Health</h2>
-          </div>
+          <div className="section-heading">
 
-          <span className="section-badge">
-            {totalResources} RESOURCES
-          </span>
-        </div>
+            <div>
 
-        <div className="health-summary">
+              <p className="eyebrow">
+                RESOURCE OVERVIEW
+              </p>
 
-          <div className="health-card cloud-healthy">
-            <div className="health-card-icon">
-              ●
+              <h2>
+                Cloud Health
+              </h2>
+
             </div>
 
-            <h3>Healthy Resources</h3>
+            <span className="section-badge">
+              {totalResources} RESOURCES
+            </span>
 
-            <p>{healthyResources}</p>
-
-            <small>
-              Operational resources
-            </small>
           </div>
 
-          <div className="health-card cloud-warning">
-            <div className="health-card-icon">
-              ●
+          <div className="health-summary">
+
+            {/* Healthy */}
+            <div className="health-card cloud-healthy">
+
+              <div className="health-card-icon">
+                ●
+              </div>
+
+              <h3>
+                Healthy Resources
+              </h3>
+
+              <p>
+                {healthyResources}
+              </p>
+
+              <small>
+                Operational resources
+              </small>
+
             </div>
 
-            <h3>Warning Resources</h3>
+            {/* Warning */}
+            <div className="health-card cloud-warning">
 
-            <p>{warningResources}</p>
+              <div className="health-card-icon">
+                ●
+              </div>
 
-            <small>
-              Need attention
-            </small>
-          </div>
+              <h3>
+                Warning Resources
+              </h3>
 
-          <div className="health-card cloud-critical">
-            <div className="health-card-icon">
-              ●
+              <p>
+                {warningResources}
+              </p>
+
+              <small>
+                Need attention
+              </small>
+
             </div>
 
-            <h3>Critical Resources</h3>
+            {/* Critical */}
+            <div className="health-card cloud-critical">
 
-            <p>{criticalResources}</p>
+              <div className="health-card-icon">
+                ●
+              </div>
 
-            <small>
-              Immediate attention
-            </small>
-          </div>
+              <h3>
+                Critical Resources
+              </h3>
 
-          <div className="health-card cloud-cpu">
-            <div className="health-card-icon">
-              ◈
+              <p>
+                {criticalResources}
+              </p>
+
+              <small>
+                Immediate attention
+              </small>
+
             </div>
 
-            <h3>Average CPU</h3>
+            {/* Average CPU */}
+            <div className="health-card cloud-cpu">
 
-            <p>{averageCpu}%</p>
+              <div className="health-card-icon">
+                ◈
+              </div>
 
-            <small>
-              Across cloud resources
-            </small>
+              <h3>
+                Average CPU
+              </h3>
+
+              <p>
+                {averageCpu !== null
+                  ? `${averageCpu}%`
+                  : "N/A"}
+              </p>
+
+              <small>
+                Across cloud resources
+              </small>
+
+            </div>
+
           </div>
 
-        </div>
-      </section>
+          {/* Overall cloud health */}
+          <div className="section-heading">
+
+            <div>
+
+              <p className="eyebrow">
+                OVERALL STATUS
+              </p>
+
+              <h2>
+                Cloud Infrastructure Health
+              </h2>
+
+            </div>
+
+            <span
+              className={`status-badge ${
+                cloudHealth?.toLowerCase() || "unknown"
+              }`}
+            >
+              {cloudHealth}
+            </span>
+
+          </div>
+
+        </section>
+
+      )}
 
       {/* Cloud resources */}
-      <section className="dashboard-section">
+      {!loading && !error && (
 
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">CONNECTED RESOURCES</p>
+        <section className="dashboard-section">
 
-            <h2>Cloud Resources</h2>
+          <div className="section-heading">
+
+            <div>
+
+              <p className="eyebrow">
+                CONNECTED RESOURCES
+              </p>
+
+              <h2>
+                Cloud Resources
+              </h2>
+
+            </div>
+
+            <span className="section-badge">
+              LIVE STATUS
+            </span>
+
           </div>
 
-          <span className="section-badge">
-            LIVE STATUS
-          </span>
-        </div>
+          {cloudResources.length === 0 ? (
 
-        <div className="asset-table-wrapper">
+            <div className="table-container">
 
-          <table className="asset-table">
+              <p className="loading-message">
+                No cloud resources found.
+              </p>
 
-            <thead>
-              <tr>
-                <th>Resource</th>
-                <th>Provider</th>
-                <th>Type</th>
-                <th>Region</th>
-                <th>Status</th>
-                <th>CPU</th>
-              </tr>
-            </thead>
+            </div>
 
-            <tbody>
-              {cloudResources.map((resource) => (
-                <tr key={resource.id}>
+          ) : (
 
-                  <td>
-                    {resource.name}
-                  </td>
+            <div className="asset-table-wrapper">
 
-                  <td>
-                    {resource.provider}
-                  </td>
+              <table className="asset-table">
 
-                  <td>
-                    {resource.type}
-                  </td>
+                <thead>
 
-                  <td>
-                    {resource.region}
-                  </td>
+                  <tr>
 
-                  <td>
-                    <span
-                      className={`status-badge ${resource.status.toLowerCase()}`}
-                    >
-                      {resource.status}
-                    </span>
-                  </td>
+                    <th>
+                      Resource
+                    </th>
 
-                  <td>
-                    {resource.cpu}%
-                  </td>
+                    <th>
+                      Provider
+                    </th>
 
-                </tr>
-              ))}
-            </tbody>
+                    <th>
+                      Type
+                    </th>
 
-          </table>
+                    <th>
+                      Region
+                    </th>
 
-        </div>
-      </section>
+                    <th>
+                      Status
+                    </th>
+
+                    <th>
+                      CPU
+                    </th>
+
+                  </tr>
+
+                </thead>
+
+                <tbody>
+
+                  {cloudResources.map((resource) => (
+
+                    <tr key={resource.id}>
+
+                      <td>
+                        {resource.name}
+                      </td>
+
+                      <td>
+                        {resource.provider}
+                      </td>
+
+                      <td>
+                        {resource.resourceType}
+                      </td>
+
+                      <td>
+                        {resource.region}
+                      </td>
+
+                      <td>
+
+                        <span
+                          className={`status-badge ${
+                            resource.status?.toLowerCase() ||
+                            "unknown"
+                          }`}
+                        >
+                          {resource.status || "UNKNOWN"}
+                        </span>
+
+                      </td>
+
+                      <td>
+                        {resource.cpu !== undefined &&
+                        resource.cpu !== null
+                          ? `${resource.cpu}%`
+                          : "N/A"}
+                      </td>
+
+                    </tr>
+
+                  ))}
+
+                </tbody>
+
+              </table>
+
+            </div>
+
+          )}
+
+        </section>
+
+      )}
 
     </div>
   )

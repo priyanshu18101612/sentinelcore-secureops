@@ -5,57 +5,14 @@ function Assets() {
   const [assets, setAssets] = useState([])
   const [loading, setLoading] = useState(true)
 
-  // Temporary mock data for frontend development.
-  // This will be replaced automatically when the backend API is available.
-  const mockAssets = [
-    {
-      id: 1,
-      name: "Web Server 01",
-      type: "Server",
-      status: "Healthy",
-    },
-    {
-      id: 2,
-      name: "Database Server",
-      type: "Database",
-      status: "Healthy",
-    },
-    {
-      id: 3,
-      name: "Application Server",
-      type: "Server",
-      status: "Warning",
-    },
-    {
-      id: 4,
-      name: "Cloud VM 01",
-      type: "Cloud",
-      status: "Healthy",
-    },
-    {
-      id: 5,
-      name: "Network Router",
-      type: "Network",
-      status: "Critical",
-    },
-  ]
-
   useEffect(() => {
     async function loadAssets() {
       try {
         const data = await getAssets()
-
-        // Use backend data when available.
-        if (Array.isArray(data) && data.length > 0) {
-          setAssets(data)
-        } else {
-          // Backend responded but returned no assets.
-          setAssets(mockAssets)
-        }
+        setAssets(data)
       } catch (error) {
-        // Backend is unavailable, so use mock data.
-        console.log("Backend unavailable. Using mock asset data.")
-        setAssets(mockAssets)
+        console.error("Failed to fetch assets:", error)
+        setAssets([])
       } finally {
         setLoading(false)
       }
@@ -158,7 +115,15 @@ function Assets() {
           </div>
         )}
 
-        {!loading && (
+        {!loading && assets.length === 0 && (
+          <div className="table-container">
+            <p className="loading-message">
+              No assets found.
+            </p>
+          </div>
+        )}
+
+        {!loading && assets.length > 0 && (
           <div className="table-container">
             <table className="asset-table">
 
