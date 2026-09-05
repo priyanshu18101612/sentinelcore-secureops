@@ -8,6 +8,7 @@ import HealthMonitoring from "./components/HealthMonitoring"
 import Alerts from "./components/Alerts"
 import CloudMonitoring from "./components/CloudMonitoring"
 import NetworkMonitoring from "./components/NetworkMonitoring"
+import IncidentManagement from "./components/incidents/IncidentManagement"
 
 function App() {
   // Get the currently logged-in user from localStorage, or supply a default demo user
@@ -29,7 +30,12 @@ function App() {
     }
   })
 
-  const [activePage, setActivePage] = useState("Dashboard")
+  const [activePage, setActivePage] = useState(() => {
+    if (typeof window !== "undefined" && window.location.pathname.toLowerCase() === "/incidents") {
+      return "Incidents"
+    }
+    return "Dashboard"
+  })
   const [sidebarOpen, setSidebarOpen] = useState(false)
   // Time range filter for dashboard telemetry: Today / 7d / 30d
   const [timeRange, setTimeRange] = useState("Today")
@@ -42,6 +48,15 @@ function App() {
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4zM14 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1v-4z" />
+        </svg>
+      ),
+    },
+    {
+      name: "Incidents",
+      description: "Incident Management",
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v2m0 4h.01" />
         </svg>
       ),
     },
@@ -95,6 +110,13 @@ function App() {
   const handleNavigation = (page) => {
     setActivePage(page)
     setSidebarOpen(false)
+    if (typeof window !== "undefined" && window.history) {
+      if (page === "Incidents") {
+        window.history.pushState({}, "", "/incidents")
+      } else if (page === "Dashboard") {
+        window.history.pushState({}, "", "/")
+      }
+    }
   }
 
   // Login handler
@@ -248,6 +270,8 @@ function App() {
           {activePage === "Dashboard" && (
             <Dashboard timeRange={timeRange} onTimeRangeChange={setTimeRange} />
           )}
+
+          {activePage === "Incidents" && <IncidentManagement />}
 
           {activePage === "Assets" && <Assets />}
 

@@ -190,3 +190,128 @@ export async function getSla() {
 
   return response.json()
 }
+
+
+// ===============================
+// INCIDENT MANAGEMENT (MILESTONE 2)
+// ===============================
+
+export async function getIncidents() {
+  const response = await fetch(`${API_BASE_URL}/incidents`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch incidents (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getIncidentById(id) {
+  const response = await fetch(`${API_BASE_URL}/incidents/${id}`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch incident #${id} (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function createIncident(incidentData) {
+  const response = await fetch(`${API_BASE_URL}/incidents`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(incidentData),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to create incident (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function updateIncidentSeverity(id, severity) {
+  const response = await fetch(`${API_BASE_URL}/incidents/${id}/severity`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ severity }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to update incident severity (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function assignIncident(id, assignedTeam) {
+  const response = await fetch(`${API_BASE_URL}/incidents/${id}/assign`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ assignedTeam }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to assign incident (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function updateIncidentStatus(id, status) {
+  const response = await fetch(`${API_BASE_URL}/incidents/${id}/status`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ status }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to update incident status (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function resolveIncident(id, resolutionNotes) {
+  const response = await fetch(`${API_BASE_URL}/incidents/${id}/resolve`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ resolutionNotes }),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to resolve incident (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getIncidentSla(id) {
+  const response = await fetch(`${API_BASE_URL}/incidents/${id}/sla`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch incident SLA (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getIncidentAudit(id) {
+  const response = await fetch(`${API_BASE_URL}/incidents/${id}/audit`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch incident audit history (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
