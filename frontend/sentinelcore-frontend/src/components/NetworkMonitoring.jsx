@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useMemo, useCallback } from "react"
 import {
   AreaChart,
   Area,
@@ -8,193 +8,130 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts"
-import {
-  getNetworkStatus,
-  getNetworkMetrics,
-} from "../services/api"
-
-// Mock rolling 24-hour network traffic telemetry (Inbound / Outbound in Mbps)
-const TIME_SERIES_TRAFFIC = [
-  { time: "00:00", inbound: 420, outbound: 260, dropped: 0 },
-  { time: "02:00", inbound: 360, outbound: 210, dropped: 0 },
-  { time: "04:00", inbound: 290, outbound: 180, dropped: 0 },
-  { time: "06:00", inbound: 410, outbound: 240, dropped: 1 },
-  { time: "08:00", inbound: 680, outbound: 420, dropped: 0 },
-  { time: "10:00", inbound: 890, outbound: 580, dropped: 2 },
-  { time: "12:00", inbound: 940, outbound: 620, dropped: 1 },
-  { time: "14:00", inbound: 860, outbound: 570, dropped: 0 },
-  { time: "16:00", inbound: 920, outbound: 610, dropped: 3 },
-  { time: "18:00", inbound: 840, outbound: 540, dropped: 1 },
-  { time: "20:00", inbound: 710, outbound: 460, dropped: 0 },
-  { time: "22:00", inbound: 540, outbound: 350, dropped: 0 },
-]
-
-// Network Interfaces inventory
-const BASE_INTERFACES = [
-  {
-    name: "eth0",
-    label: "Primary Gateway Uplink",
-    type: "PHYSICAL",
-    mac: "52:54:00:8f:91:a1",
-    ip: "192.168.1.10/24",
-    speed: "10 Gbps SFP+",
-    rxRate: "684.2 Mbps",
-    txRate: "419.6 Mbps",
-    rxPercent: 68,
-    txPercent: 42,
-    mtu: 9000,
-    dropped: "0 pkts",
-    status: "UP",
-  },
-  {
-    name: "eth1",
-    label: "Internal East-West Mesh",
-    type: "PHYSICAL",
-    mac: "52:54:00:8f:91:a2",
-    ip: "10.0.10.15/24",
-    speed: "10 Gbps DAC",
-    rxRate: "340.5 Mbps",
-    txRate: "280.1 Mbps",
-    rxPercent: 34,
-    txPercent: 28,
-    mtu: 9000,
-    dropped: "0 pkts",
-    status: "UP",
-  },
-  {
-    name: "wg0",
-    label: "SecOps Zero-Trust VPN",
-    type: "VIRTUAL",
-    mac: "00:00:00:00:00:00",
-    ip: "10.88.0.1/32",
-    speed: "Encrypted Mesh",
-    rxRate: "48.2 Mbps",
-    txRate: "36.4 Mbps",
-    rxPercent: 18,
-    txPercent: 14,
-    mtu: 1420,
-    dropped: "0 pkts",
-    status: "UP",
-  },
-  {
-    name: "flannel.1",
-    label: "Kubernetes CNI Overlay",
-    type: "CONTAINER",
-    mac: "ba:41:8c:12:ef:90",
-    ip: "10.244.0.1/32",
-    speed: "VXLAN Tunnel",
-    rxRate: "215.8 Mbps",
-    txRate: "198.3 Mbps",
-    rxPercent: 22,
-    txPercent: 20,
-    mtu: 1450,
-    dropped: "0 pkts",
-    status: "UP",
-  },
-  {
-    name: "docker0",
-    label: "Local Bridge Network",
-    type: "CONTAINER",
-    mac: "02:42:e8:11:bc:55",
-    ip: "172.17.0.1/16",
-    speed: "Virtual Bridge",
-    rxRate: "12.4 Mbps",
-    txRate: "9.2 Mbps",
-    rxPercent: 5,
-    txPercent: 4,
-    mtu: 1500,
-    dropped: "0 pkts",
-    status: "UP",
-  },
-]
-
-// Protocol breakdown statistics
-const PROTOCOLS = [
-  { name: "HTTPS (Port 443)", share: 62, volume: "1.04 Gbps", color: "bg-cyan-500", text: "text-cyan-400" },
-  { name: "DNS / DoH (Port 53)", share: 15, volume: "252 Mbps", color: "bg-emerald-500", text: "text-emerald-400" },
-  { name: "SSH / Bastion (Port 22)", share: 11, volume: "185 Mbps", color: "bg-indigo-500", text: "text-indigo-400" },
-  { name: "gRPC Microservices", share: 8, volume: "134 Mbps", color: "bg-violet-500", text: "text-violet-400" },
-  { name: "ICMP / Telemetry", share: 4, volume: "67 Mbps", color: "bg-amber-500", text: "text-amber-400" },
-]
+import { getNetworkStatus, getNetworkMetrics } from "../services/api"
+import { LoadingState, ErrorState, EmptyState } from "./StatusFeedback"
 
 function NetworkMonitoring() {
   const [networkStatus, setNetworkStatus] = useState("UP")
-  const [networkMetrics, setNetworkMetrics] = useState(null)
+  const [networkMetrics, setNetworkMetrics] = useState([])
   const [loading, setLoading] = useState(true)
-  const [selectedType, setSelectedType] = useState("ALL")
+  const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState("")
-  const [isRefreshing, setIsRefreshing] = useState(false)
 
-  useEffect(() => {
-    async function loadInitialNetworkData() {
-      try {
-        const [status, metrics] = await Promise.all([
-          getNetworkStatus(),
-          getNetworkMetrics(),
-        ])
-
-        setNetworkStatus(status || "UP")
-
-        if (Array.isArray(metrics) && metrics.length > 0) {
-          setNetworkMetrics(metrics[0])
-        } else {
-          setNetworkMetrics(null)
-        }
-      } catch (error) {
-        console.warn("Using baseline network telemetry data:", error)
-        setNetworkStatus("UP")
-        setNetworkMetrics(null)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    loadInitialNetworkData()
-  }, [])
-
-  const handleRefresh = async () => {
-    setIsRefreshing(true)
+  const fetchNetworkData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
     try {
       const [status, metrics] = await Promise.all([
-        getNetworkStatus(),
+        getNetworkStatus().catch(() => "UP"),
         getNetworkMetrics(),
       ])
 
-      setNetworkStatus(status || "UP")
-
-      if (Array.isArray(metrics) && metrics.length > 0) {
-        setNetworkMetrics(metrics[0])
+      setNetworkStatus(typeof status === "string" ? status : "UP")
+      if (Array.isArray(metrics)) {
+        setNetworkMetrics(metrics)
+      } else {
+        setNetworkMetrics([])
       }
-    } catch (error) {
-      console.warn("Using baseline network telemetry data:", error)
+    } catch (err) {
+      console.error("Failed to load network telemetry from backend:", err)
+      setError(err)
+      setNetworkMetrics([])
     } finally {
-      setIsRefreshing(false)
+      setLoading(false)
     }
-  }
+  }, [])
 
-  // Dynamic values: use API metrics if available, otherwise high-fidelity baseline
-  const incomingTraffic = Number(networkMetrics?.networkIn) || 684.2
-  const outgoingTraffic = Number(networkMetrics?.networkOut) || 419.6
-  const latency = Number(networkMetrics?.latency) || 14.2
-  const packetLoss = Number(networkMetrics?.packetLoss) || 0.02
-  const networkName = networkMetrics?.networkName || "Prod-VPC-US-East"
-  const isNetworkUp = networkStatus?.toUpperCase() === "UP"
+  useEffect(() => {
+    let ignore = false
+    Promise.all([
+      getNetworkStatus().catch(() => "UP"),
+      getNetworkMetrics(),
+    ])
+      .then(([status, metrics]) => {
+        if (!ignore) {
+          setNetworkStatus(typeof status === "string" ? status : "UP")
+          setNetworkMetrics(Array.isArray(metrics) ? metrics : [])
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          console.error("Failed to load network telemetry from backend:", err)
+          setError(err)
+          setNetworkMetrics([])
+          setLoading(false)
+        }
+      })
+    return () => {
+      ignore = true
+    }
+  }, [])
 
-  // Filter interfaces based on search & category
-  const filteredInterfaces = useMemo(() => {
-    return BASE_INTERFACES.filter((iface) => {
-      const matchesSearch =
-        iface.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        iface.label.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        iface.ip.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        iface.mac.toLowerCase().includes(searchQuery.toLowerCase())
+  // Latest snapshot metrics from real backend data
+  const latestMetric = useMemo(() => {
+    if (networkMetrics.length === 0) return null
+    return networkMetrics[networkMetrics.length - 1]
+  }, [networkMetrics])
 
-      const matchesType =
-        selectedType === "ALL" || iface.type === selectedType
+  const incomingTraffic = latestMetric?.networkIn != null ? Number(latestMetric.networkIn) : null
+  const outgoingTraffic = latestMetric?.networkOut != null ? Number(latestMetric.networkOut) : null
+  const latency = latestMetric?.latency != null ? Number(latestMetric.latency) : null
+  const packetLoss = latestMetric?.packetLoss != null ? Number(latestMetric.packetLoss) : null
+  const activeInterfaceName = latestMetric?.networkName || "—"
 
-      return matchesSearch && matchesType
+  // Time-series chart points derived strictly from backend timestamps & throughput
+  const chartData = useMemo(() => {
+    if (networkMetrics.length === 0) return []
+    return networkMetrics.map((m, index) => {
+      let timeLabel = `#${index + 1}`
+      if (m.timestamp) {
+        try {
+          const d = new Date(m.timestamp)
+          timeLabel = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })
+        } catch {
+          timeLabel = String(m.timestamp)
+        }
+      }
+      return {
+        time: timeLabel,
+        inbound: Number(m.networkIn) || 0,
+        outbound: Number(m.networkOut) || 0,
+        latency: Number(m.latency) || 0,
+      }
     })
-  }, [searchQuery, selectedType])
+  }, [networkMetrics])
+
+  // Filtered network metrics list
+  const filteredMetrics = useMemo(() => {
+    if (!searchQuery) return networkMetrics
+    const q = searchQuery.toLowerCase()
+    return networkMetrics.filter((m) => {
+      const name = m.networkName || ""
+      const status = m.status || ""
+      const id = String(m.id || "")
+      return name.toLowerCase().includes(q) || status.toLowerCase().includes(q) || id.includes(q)
+    })
+  }, [networkMetrics, searchQuery])
+
+  // Telemetry summaries from real records
+  const peakInbound = useMemo(() => {
+    if (networkMetrics.length === 0) return 0
+    return Math.max(...networkMetrics.map((m) => Number(m.networkIn) || 0))
+  }, [networkMetrics])
+
+  const peakOutbound = useMemo(() => {
+    if (networkMetrics.length === 0) return 0
+    return Math.max(...networkMetrics.map((m) => Number(m.networkOut) || 0))
+  }, [networkMetrics])
+
+  const avgLatency = useMemo(() => {
+    if (networkMetrics.length === 0) return 0
+    const sum = networkMetrics.reduce((acc, m) => acc + (Number(m.latency) || 0), 0)
+    return (sum / networkMetrics.length).toFixed(1)
+  }, [networkMetrics])
+
+  const isUp = networkStatus === "UP"
 
   return (
     <div className="space-y-7 text-slate-100">
@@ -203,53 +140,68 @@ function NetworkMonitoring() {
         <div>
           <div className="flex items-center gap-2">
             <span className="text-[11px] font-bold tracking-wider text-cyan-400 uppercase">
-              GLOBAL TELEMETRY & ROUTING
+              NETWORK OPERATIONS CENTER
             </span>
             <span className="text-slate-600">•</span>
             <span className="text-xs text-slate-400 font-mono">
-              eBPF & NetFlow Synchronized
+              PostgreSQL Telemetry: {networkMetrics.length} Samples
             </span>
           </div>
           <h1 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight mt-1">
-            Network Traffic & Gateway Monitoring
+            Network Status & Telemetry
           </h1>
-          <p className="text-sm text-slate-400 mt-1">
-            Real-time packet inspection, gateway throughput, latency distribution, and edge ingress/egress metrics.
+          <p className="text-sm text-slate-400 mt-0.5">
+            Real-time ingress/egress flow rates, latency probes, and packet telemetry from Spring Boot API.
           </p>
         </div>
 
-        {/* Live Status & Actions */}
         <div className="flex items-center gap-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs font-semibold text-emerald-400">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping"></span>
-            <span>{isNetworkUp ? "NetFlow Probe Active" : "Network Degraded"}</span>
+          <div
+            className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-semibold ${
+              isUp
+                ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20"
+                : "bg-rose-500/10 text-rose-400 border-rose-500/20"
+            }`}
+          >
+            <span
+              className={`w-2 h-2 rounded-full ${
+                isUp
+                  ? "bg-emerald-400 shadow-[0_0_6px_#10b981]"
+                  : "bg-rose-400 shadow-[0_0_6px_#f43f5e]"
+              }`}
+            />
+            Network Backbone: {networkStatus}
           </div>
 
           <button
-            onClick={handleRefresh}
-            disabled={isRefreshing}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-xs font-medium text-slate-200 border border-slate-700 transition-colors cursor-pointer disabled:opacity-50"
+            onClick={fetchNetworkData}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition cursor-pointer"
           >
-            <svg
-              className={`w-3.5 h-3.5 ${isRefreshing ? "animate-spin text-cyan-400" : ""}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
+            <svg className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
-            <span>{isRefreshing ? "Probing..." : "Refresh"}</span>
+            Refresh
           </button>
         </div>
       </div>
 
-      {/* 4 Metric Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      {error && (
+        <ErrorState
+          title="Could Not Connect to Network Telemetry Service"
+          message="Failed to fetch network status or metrics from GET /api/network/*. Ensure Spring Boot is running."
+          error={error}
+          onRetry={fetchNetworkData}
+        />
+      )}
+
+      {/* Top 4 KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         {/* Card 1: Inbound Bandwidth */}
         <div className="bg-[#131b2e] border border-slate-800/80 rounded-xl p-5 shadow-lg shadow-black/20 hover:border-cyan-500/40 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Ingress Bandwidth (RX)
+              Ingress Rate (RX)
             </span>
             <span className="p-2 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -259,13 +211,13 @@ function NetworkMonitoring() {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-black tracking-tight text-white font-mono">
-              {incomingTraffic}
+              {incomingTraffic != null ? incomingTraffic : "—"}
             </span>
             <span className="text-xs font-semibold text-slate-400">Mbps</span>
           </div>
           <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-slate-800/60">
-            <span className="text-emerald-400 font-medium">↑ +8.4% vs 1h baseline</span>
-            <span className="text-slate-400 font-mono">Peak: 1.28 Gbps</span>
+            <span className="text-slate-400">Latest recorded ingress</span>
+            <span className="text-slate-400 font-mono">Peak: {peakInbound} Mbps</span>
           </div>
         </div>
 
@@ -273,7 +225,7 @@ function NetworkMonitoring() {
         <div className="bg-[#131b2e] border border-slate-800/80 rounded-xl p-5 shadow-lg shadow-black/20 hover:border-indigo-500/40 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Egress Bandwidth (TX)
+              Egress Rate (TX)
             </span>
             <span className="p-2 rounded-lg bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -283,13 +235,13 @@ function NetworkMonitoring() {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-black tracking-tight text-white font-mono">
-              {outgoingTraffic}
+              {outgoingTraffic != null ? outgoingTraffic : "—"}
             </span>
             <span className="text-xs font-semibold text-slate-400">Mbps</span>
           </div>
           <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-slate-800/60">
-            <span className="text-slate-400 font-medium">↓ -2.1% vs 1h baseline</span>
-            <span className="text-slate-400 font-mono">Peak: 890 Mbps</span>
+            <span className="text-slate-400">Latest recorded egress</span>
+            <span className="text-slate-400 font-mono">Peak: {peakOutbound} Mbps</span>
           </div>
         </div>
 
@@ -297,7 +249,7 @@ function NetworkMonitoring() {
         <div className="bg-[#131b2e] border border-slate-800/80 rounded-xl p-5 shadow-lg shadow-black/20 hover:border-emerald-500/40 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Average Roundtrip Latency
+              Roundtrip Latency
             </span>
             <span className="p-2 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -307,13 +259,13 @@ function NetworkMonitoring() {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-black tracking-tight text-white font-mono">
-              {latency}
+              {latency != null ? latency : "—"}
             </span>
             <span className="text-xs font-semibold text-slate-400">ms</span>
           </div>
           <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-slate-800/60">
-            <span className="text-emerald-400 font-medium">Target: &lt; 25ms</span>
-            <span className="text-slate-400 font-mono">Jitter: 0.8ms</span>
+            <span className="text-emerald-400 font-medium">Avg: {avgLatency} ms</span>
+            <span className="text-slate-400 font-mono">{networkMetrics.length} probes</span>
           </div>
         </div>
 
@@ -321,7 +273,7 @@ function NetworkMonitoring() {
         <div className="bg-[#131b2e] border border-slate-800/80 rounded-xl p-5 shadow-lg shadow-black/20 hover:border-amber-500/40 transition-all">
           <div className="flex items-center justify-between">
             <span className="text-xs font-medium text-slate-400 uppercase tracking-wider">
-              Packet Loss & Frame Drops
+              Packet Loss
             </span>
             <span className="p-2 rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -331,28 +283,26 @@ function NetworkMonitoring() {
           </div>
           <div className="mt-3 flex items-baseline gap-2">
             <span className="text-2xl font-black tracking-tight text-white font-mono">
-              {packetLoss}%
+              {packetLoss != null ? `${packetLoss}%` : "—"}
             </span>
-            <span className="text-xs font-semibold text-emerald-400 font-medium">Nominal</span>
           </div>
           <div className="mt-3 flex items-center justify-between text-xs pt-2 border-t border-slate-800/60">
-            <span className="text-slate-400">VPC: {networkName}</span>
-            <span className="text-emerald-400 font-mono">0 dropped frames</span>
+            <span className="text-slate-400">Active Segment: {activeInterfaceName}</span>
           </div>
         </div>
       </div>
 
-      {/* Middle Grid: Traffic Throughput AreaChart & Protocol Breakdown */}
+      {/* Middle Grid: Traffic Throughput AreaChart & Telemetry Summary */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-        {/* Left: 24-Hour Ingress / Egress Throughput Chart */}
+        {/* Left: Real Ingress / Egress Throughput Chart */}
         <div className="lg:col-span-8 bg-[#131b2e] border border-slate-800/80 rounded-xl p-5 shadow-lg shadow-black/20">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-4 border-b border-slate-800/60">
             <div>
               <h2 className="text-base font-bold text-white tracking-tight">
-                24-Hour Throughput Telemetry
+                Live Throughput Telemetry
               </h2>
               <p className="text-xs text-slate-400 mt-0.5">
-                Real-time ingress (RX) and egress (TX) flow rates across all cluster gateways
+                Ingress (RX) and egress (TX) flow rates plotted from PostgreSQL network_metrics
               </p>
             </div>
             <div className="flex items-center gap-4 text-xs font-medium">
@@ -368,250 +318,208 @@ function NetworkMonitoring() {
           </div>
 
           <div className="mt-5 h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={TIME_SERIES_TRAFFIC} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="ingressGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="egressGradient" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
-                <XAxis
-                  dataKey="time"
-                  stroke="#64748b"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={{ stroke: "#334155" }}
-                />
-                <YAxis
-                  stroke="#64748b"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={{ stroke: "#334155" }}
-                  tickFormatter={(val) => `${val}M`}
-                />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: "#0d1527",
-                    borderColor: "#334155",
-                    borderRadius: "0.5rem",
-                    boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.5)",
-                    fontSize: "12px",
-                    color: "#f8fafc",
-                  }}
-                  formatter={(val, name) => [
-                    `${val} Mbps`,
-                    name === "inbound" ? "Ingress Traffic" : "Egress Traffic",
-                  ]}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="inbound"
-                  stroke="#06b6d4"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#ingressGradient)"
-                />
-                <Area
-                  type="monotone"
-                  dataKey="outbound"
-                  stroke="#6366f1"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#egressGradient)"
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {chartData.length === 0 ? (
+              <div className="h-full flex flex-col items-center justify-center text-slate-500 text-xs text-center p-4">
+                <svg className="w-8 h-8 text-slate-600 mb-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+                </svg>
+                <span>No network throughput telemetry points recorded in database.</span>
+                <span className="text-slate-600 text-[11px] mt-1">Populate network_metrics table to view graphs.</span>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={chartData} margin={{ top: 10, right: 10, left: -15, bottom: 0 }}>
+                  <defs>
+                    <linearGradient id="ingressGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
+                    </linearGradient>
+                    <linearGradient id="egressGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#6366f1" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#6366f1" stopOpacity={0.0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" vertical={false} />
+                  <XAxis dataKey="time" stroke="#64748b" fontSize={11} tickLine={false} />
+                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} />
+                  <Tooltip
+                    contentStyle={{
+                      backgroundColor: "#0f172a",
+                      border: "1px solid #334155",
+                      borderRadius: "8px",
+                      fontSize: "12px",
+                      color: "#f8fafc",
+                    }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="inbound"
+                    name="Ingress"
+                    stroke="#06b6d4"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#ingressGradient)"
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="outbound"
+                    name="Egress"
+                    stroke="#6366f1"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#egressGradient)"
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
 
-        {/* Right: Protocol Distribution & Gateway Routing Health */}
-        <div className="lg:col-span-4 space-y-4">
-          {/* Protocol Distribution */}
-          <div className="bg-[#131b2e] border border-slate-800/80 rounded-xl p-5 shadow-lg shadow-black/20">
-            <h2 className="text-sm font-bold text-white tracking-tight pb-3 border-b border-slate-800/60">
-              Protocol & Port Distribution
+        {/* Right: Real Telemetry Summary */}
+        <div className="lg:col-span-4 bg-[#131b2e] border border-slate-800/80 rounded-xl p-5 shadow-lg shadow-black/20 flex flex-col justify-between">
+          <div>
+            <h2 className="text-base font-bold text-white tracking-tight">
+              Network Telemetry Summary
             </h2>
-            <div className="mt-4 space-y-3.5">
-              {PROTOCOLS.map((proto) => (
-                <div key={proto.name} className="space-y-1">
-                  <div className="flex justify-between items-center text-xs">
-                    <span className="font-medium text-slate-300">{proto.name}</span>
-                    <span className="font-mono text-slate-400">{proto.share}% ({proto.volume})</span>
-                  </div>
-                  <div className="h-1.5 w-full bg-slate-800/80 rounded-full overflow-hidden">
-                    <div
-                      className={`h-full rounded-full ${proto.color}`}
-                      style={{ width: `${proto.share}%` }}
-                    ></div>
-                  </div>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Live statistics derived from PostgreSQL network_metrics
+            </p>
+
+            <div className="mt-5 space-y-4">
+              <div className="p-3.5 rounded-lg bg-slate-900/60 border border-slate-800/80">
+                <div className="flex justify-between text-xs text-slate-400">
+                  <span>Total Telemetry Samples</span>
+                  <span className="font-mono text-white font-bold">{networkMetrics.length}</span>
                 </div>
-              ))}
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-slate-900/60 border border-slate-800/80">
+                <div className="flex justify-between text-xs text-slate-400">
+                  <span>Peak Ingress Rate</span>
+                  <span className="font-mono text-cyan-400 font-bold">{peakInbound} Mbps</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-slate-900/60 border border-slate-800/80">
+                <div className="flex justify-between text-xs text-slate-400">
+                  <span>Peak Egress Rate</span>
+                  <span className="font-mono text-indigo-400 font-bold">{peakOutbound} Mbps</span>
+                </div>
+              </div>
+
+              <div className="p-3.5 rounded-lg bg-slate-900/60 border border-slate-800/80">
+                <div className="flex justify-between text-xs text-slate-400">
+                  <span>Average Latency</span>
+                  <span className="font-mono text-emerald-400 font-bold">{avgLatency} ms</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          {/* Gateway Routing Status */}
-          <div className="bg-[#131b2e] border border-slate-800/80 rounded-xl p-5 shadow-lg shadow-black/20">
-            <h2 className="text-sm font-bold text-white tracking-tight pb-3 border-b border-slate-800/60">
-              Gateway Routing Status
-            </h2>
-            <div className="mt-3 space-y-2.5 text-xs">
-              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-800/60">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                  <span className="font-mono text-slate-300">BGP Peer Router-01</span>
-                </div>
-                <span className="font-semibold text-emerald-400">ESTABLISHED</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-800/60">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-emerald-400"></span>
-                  <span className="font-mono text-slate-300">Cloudflare Magic Transit</span>
-                </div>
-                <span className="font-semibold text-emerald-400">ACTIVE (0 Drops)</span>
-              </div>
-              <div className="flex items-center justify-between p-2 rounded-lg bg-slate-900/60 border border-slate-800/60">
-                <div className="flex items-center gap-2">
-                  <span className="w-2 h-2 rounded-full bg-cyan-400"></span>
-                  <span className="font-mono text-slate-300">WireGuard Mesh wg0</span>
-                </div>
-                <span className="font-semibold text-cyan-400">SYNCED</span>
-              </div>
-            </div>
+          <div className="pt-4 border-t border-slate-800/60 text-xs text-slate-400 flex items-center justify-between">
+            <span>Interface Link:</span>
+            <span className="font-mono text-slate-200">{activeInterfaceName}</span>
           </div>
         </div>
       </div>
 
-      {/* Interfaces & Gateways Catalog */}
-      <div className="bg-[#131b2e] border border-slate-800/80 rounded-xl shadow-lg shadow-black/20 overflow-hidden">
-        {/* Table Controls */}
-        <div className="p-5 border-b border-slate-800/80 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      {/* Network Metrics Inventory Table */}
+      <div className="rounded-xl bg-slate-900/80 border border-slate-800/80 shadow-lg shadow-black/20 overflow-hidden">
+        <div className="p-5 border-b border-slate-800/80 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h2 className="text-lg font-bold text-white tracking-tight">
-              Network Interfaces & Routing Adapters
+            <h2 className="text-base font-bold text-white tracking-tight">
+              Network Metric Logs
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Live link speeds, MTU configurations, and hardware drop telemetry
+              Showing {filteredMetrics.length} of {networkMetrics.length} database metric samples
             </p>
           </div>
 
-          <div className="flex flex-wrap items-center gap-3">
-            {/* Search */}
-            <div className="relative">
-              <input
-                type="text"
-                placeholder="Search interfaces, IP, MAC..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-56 lg:w-64 bg-slate-900/80 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-cyan-500 transition-colors"
-              />
-            </div>
-
-            {/* Type Filter */}
-            <div className="flex items-center bg-slate-900/90 border border-slate-800 rounded-lg p-0.5 text-xs font-semibold">
-              {["ALL", "PHYSICAL", "VIRTUAL", "CONTAINER"].map((type) => (
-                <button
-                  key={type}
-                  onClick={() => setSelectedType(type)}
-                  className={`px-3 py-1 rounded-md transition-colors cursor-pointer ${
-                    selectedType === type
-                      ? "bg-cyan-500 text-slate-950 font-bold shadow-sm"
-                      : "text-slate-400 hover:text-white"
-                  }`}
-                >
-                  {type}
-                </button>
-              ))}
-            </div>
+          <div className="relative w-full sm:w-64">
+            <input
+              type="text"
+              placeholder="Search by network name or status..."
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              className="w-full bg-slate-800/80 border border-slate-700/80 rounded-lg px-3 py-1.5 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-cyan-500 transition-colors"
+            />
           </div>
         </div>
 
-        {/* Table Content */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-300">
-            <thead className="bg-[#0b101c] text-slate-400 uppercase tracking-wider font-semibold border-b border-slate-800/80">
-              <tr>
-                <th className="py-3 px-4">Interface / Device</th>
-                <th className="py-3 px-4">IP Address / CIDR</th>
-                <th className="py-3 px-4">Link Speed & Type</th>
-                <th className="py-3 px-4">Ingress (RX)</th>
-                <th className="py-3 px-4">Egress (TX)</th>
-                <th className="py-3 px-4">MTU & Drops</th>
-                <th className="py-3 px-4 text-right">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/60">
-              {loading ? (
+        {loading ? (
+          <LoadingState message="Querying PostgreSQL network_metrics table via Spring Boot..." />
+        ) : networkMetrics.length === 0 ? (
+          <EmptyState
+            title="No Network Metrics Found"
+            message="No network metrics have been logged in the database yet. When the network probe runs, telemetry will appear here."
+            actionText="Refresh Network Telemetry"
+            onAction={fetchNetworkData}
+          />
+        ) : filteredMetrics.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs">
+            No metrics match the search criteria.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/50 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
                 <tr>
-                  <td colSpan="7" className="py-8 text-center text-slate-400">
-                    Loading network interface telemetry...
-                  </td>
+                  <th className="py-3 px-5">Metric ID</th>
+                  <th className="py-3 px-5">Network Name</th>
+                  <th className="py-3 px-5">Status</th>
+                  <th className="py-3 px-5">Ingress (RX)</th>
+                  <th className="py-3 px-5">Egress (TX)</th>
+                  <th className="py-3 px-5">Latency</th>
+                  <th className="py-3 px-5">Packet Loss</th>
+                  <th className="py-3 px-5">Recorded At</th>
                 </tr>
-              ) : filteredInterfaces.length === 0 ? (
-                <tr>
-                  <td colSpan="7" className="py-8 text-center text-slate-500">
-                    No interfaces match your search criteria.
-                  </td>
-                </tr>
-              ) : (
-                filteredInterfaces.map((iface) => (
-                  <tr key={iface.name} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3.5 px-4">
-                      <div className="flex items-center gap-2.5">
-                        <span className="p-1.5 rounded-md bg-slate-800 border border-slate-700 font-mono font-bold text-white text-[11px]">
-                          {iface.name}
+              </thead>
+              <tbody className="divide-y divide-slate-800/70">
+                {filteredMetrics.map((metric) => {
+                  const status = (metric.status || "UP").toUpperCase()
+                  const statusUp = status === "UP"
+
+                  return (
+                    <tr key={metric.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3.5 px-5 font-mono text-slate-400 text-[11px]">
+                        #{metric.id}
+                      </td>
+                      <td className="py-3.5 px-5 font-bold text-white font-mono">
+                        {metric.networkName}
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span
+                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                            statusUp
+                              ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
+                              : "bg-rose-500/15 text-rose-400 border border-rose-500/25"
+                          }`}
+                        >
+                          {status}
                         </span>
-                        <div>
-                          <div className="font-semibold text-slate-100">{iface.label}</div>
-                          <div className="font-mono text-[10px] text-slate-500">{iface.mac}</div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-cyan-400">
-                      {iface.ip}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="inline-block px-2 py-0.5 rounded bg-slate-800/90 border border-slate-700/60 text-slate-300 font-medium text-[11px]">
-                        {iface.speed}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="space-y-1">
-                        <div className="font-mono font-bold text-slate-200">{iface.rxRate}</div>
-                        <div className="w-24 h-1 bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-cyan-400 rounded-full" style={{ width: `${iface.rxPercent}%` }}></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="space-y-1">
-                        <div className="font-mono font-bold text-slate-200">{iface.txRate}</div>
-                        <div className="w-24 h-1 bg-slate-800 rounded-full overflow-hidden">
-                          <div className="h-full bg-indigo-400 rounded-full" style={{ width: `${iface.txPercent}%` }}></div>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4 font-mono text-slate-400">
-                      <div>MTU: {iface.mtu}</div>
-                      <div className="text-[10px] text-emerald-400">{iface.dropped}</div>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-bold tracking-wider bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400"></span>
-                        {iface.status}
-                      </span>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+                      </td>
+                      <td className="py-3.5 px-5 font-mono text-cyan-400">
+                        {metric.networkIn != null ? `${metric.networkIn} Mbps` : "—"}
+                      </td>
+                      <td className="py-3.5 px-5 font-mono text-indigo-400">
+                        {metric.networkOut != null ? `${metric.networkOut} Mbps` : "—"}
+                      </td>
+                      <td className="py-3.5 px-5 font-mono text-slate-300">
+                        {metric.latency != null ? `${metric.latency} ms` : "—"}
+                      </td>
+                      <td className="py-3.5 px-5 font-mono text-slate-300">
+                        {metric.packetLoss != null ? `${metric.packetLoss}%` : "—"}
+                      </td>
+                      <td className="py-3.5 px-5 text-slate-500 font-mono text-[11px]">
+                        {metric.timestamp ? new Date(metric.timestamp).toLocaleString() : "—"}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

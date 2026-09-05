@@ -1,85 +1,135 @@
-import { useEffect, useState, useMemo } from "react"
-import { getAssets, getHealth } from "../services/api"
-
-const BASE_HEALTH_CHECKS = [
-  { id: "CHK-01", name: "Kubernetes API Server Healthz", target: "k8s-control-plane-01", protocol: "HTTPS / 6443", latency: "8ms", status: "HEALTHY", lastRun: "12s ago", successRate: "99.99%" },
-  { id: "CHK-02", name: "PostgreSQL Primary Replication Lag", target: "postgres-primary-cluster", protocol: "TCP / 5432", latency: "3ms", status: "HEALTHY", lastRun: "15s ago", successRate: "100.0%" },
-  { id: "CHK-03", name: "Redis Memory Eviction & Ping", target: "redis-cluster-cache", protocol: "RESP / 6379", latency: "1.2ms", status: "HEALTHY", lastRun: "10s ago", successRate: "100.0%" },
-  { id: "CHK-04", name: "Traefik Ingress SSL Certificate Validation", target: "ingress-traefik-edge", protocol: "TLS / 443", latency: "14ms", status: "HEALTHY", lastRun: "30s ago", successRate: "100.0%" },
-  { id: "CHK-05", name: "Kafka Consumer Group Lag", target: "kafka-telemetry-pipe-01", protocol: "SASL / 9092", latency: "18ms", status: "HEALTHY", lastRun: "20s ago", successRate: "99.94%" },
-  { id: "CHK-06", name: "Worker Fleet Thread Pool Queue Depth", target: "worker-heavy-batch-04", protocol: "RPC / 50051", latency: "82ms", status: "WARNING", lastRun: "8s ago", successRate: "96.40%" },
-  { id: "CHK-07", name: "Vault KMS Secret Decryption Latency", target: "vault-kms-prod-01", protocol: "HTTPS / 8200", latency: "11ms", status: "HEALTHY", lastRun: "25s ago", successRate: "99.98%" },
-  { id: "CHK-08", name: "Elasticsearch Cluster Yellow/Green Status", target: "es-logs-cluster-eu", protocol: "REST / 9200", latency: "29ms", status: "HEALTHY", lastRun: "45s ago", successRate: "99.85%" },
-]
+import { useEffect, useState, useMemo, useCallback } from "react"
+import { getAssets, getHealth, getSla } from "../services/api"
+import { LoadingState, ErrorState, EmptyState } from "./StatusFeedback"
 
 function HealthMonitoring() {
-  const [healthData, setHealthData] = useState([])
+  const [healthChecks, setHealthChecks] = useState([])
+  const [slaData, setSlaData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [selectedStatus, setSelectedStatus] = useState("ALL")
 
+  const fetchHealthData = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [assets, sla] = await Promise.all([
+        getAssets(),
+        getSla().catch(() => null),
+      ])
+
+      setSlaData(sla)
+
+      if (Array.isArray(assets) && assets.length > 0) {
+        const results = await Promise.all(
+          assets.map(async (asset) => {
+            try {
+              const health = await getHealth(asset.id)
+              return {
+                id: asset.id,
+                name: asset.name,
+                type: asset.type || "WORKLOAD",
+                ip: asset.ipAddress || "—",
+                status: (health?.status || asset.status || "HEALTHY").toUpperCase(),
+                checkedAt: health?.checkedAt || "Recent",
+              }
+            } catch {
+              return {
+                id: asset.id,
+                name: asset.name,
+                type: asset.type || "WORKLOAD",
+                ip: asset.ipAddress || "—",
+                status: (asset.status || "HEALTHY").toUpperCase(),
+                checkedAt: "Recent",
+              }
+            }
+          })
+        )
+        setHealthChecks(results)
+      } else {
+        setHealthChecks([])
+      }
+    } catch (err) {
+      console.error("Failed to load health telemetry from backend:", err)
+      setError(err)
+      setHealthChecks([])
+    } finally {
+      setLoading(false)
+    }
+  }, [])
+
   useEffect(() => {
-    async function loadHealthData() {
-      try {
-        const assets = await getAssets()
+    let ignore = false
+    Promise.all([
+      getAssets(),
+      getSla().catch(() => null),
+    ])
+      .then(async ([assets, sla]) => {
+        if (ignore) return
+        setSlaData(sla)
         if (Array.isArray(assets) && assets.length > 0) {
-          const healthResults = await Promise.all(
+          const results = await Promise.all(
             assets.map(async (asset) => {
               try {
                 const health = await getHealth(asset.id)
                 return {
-                  id: `AST-${asset.id}`,
+                  id: asset.id,
                   name: asset.name,
                   type: asset.type || "WORKLOAD",
-                  status: (health.status || "HEALTHY").toUpperCase(),
-                  checkedAt: health.checkedAt || "Just now",
+                  ip: asset.ipAddress || "—",
+                  status: (health?.status || asset.status || "HEALTHY").toUpperCase(),
+                  checkedAt: health?.checkedAt || "Recent",
                 }
-              } catch (error) {
-                console.warn("Backend health endpoint offline:", error)
-                return null
+              } catch {
+                return {
+                  id: asset.id,
+                  name: asset.name,
+                  type: asset.type || "WORKLOAD",
+                  ip: asset.ipAddress || "—",
+                  status: (asset.status || "HEALTHY").toUpperCase(),
+                  checkedAt: "Recent",
+                }
               }
             })
           )
-          setHealthData(healthResults.filter(Boolean))
+          if (!ignore) {
+            setHealthChecks(results)
+            setLoading(false)
+          }
+        } else {
+          if (!ignore) {
+            setHealthChecks([])
+            setLoading(false)
+          }
         }
-      } catch (error) {
-        console.warn("Using baseline health monitoring data:", error)
-      } finally {
-        setLoading(false)
-      }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          console.error("Failed to load health telemetry from backend:", err)
+          setError(err)
+          setHealthChecks([])
+          setLoading(false)
+        }
+      })
+    return () => {
+      ignore = true
     }
-
-    loadHealthData()
   }, [])
 
-  const allChecks = useMemo(() => {
-    const apiChecks = healthData.map((h, i) => ({
-      id: h.id || `CHK-API-${i + 1}`,
-      name: `${h.name} Synthetic Check`,
-      target: h.name,
-      protocol: "Agent Probe / gRPC",
-      latency: "14ms",
-      status: h.status,
-      lastRun: h.checkedAt,
-      successRate: "99.95%",
-    }))
-    const combined = [...apiChecks]
-    BASE_HEALTH_CHECKS.forEach((c) => {
-      if (!combined.some((item) => item.target === c.target)) {
-        combined.push(c)
-      }
-    })
-    return combined
-  }, [healthData])
-
   const filteredChecks = useMemo(() => {
-    if (selectedStatus === "ALL") return allChecks
-    return allChecks.filter((c) => c.status === selectedStatus)
-  }, [allChecks, selectedStatus])
+    if (selectedStatus === "ALL") return healthChecks
+    return healthChecks.filter((c) => c.status === selectedStatus)
+  }, [healthChecks, selectedStatus])
 
-  const totalChecks = allChecks.length
-  const healthyChecks = allChecks.filter((c) => c.status === "HEALTHY").length
-  const warningChecks = allChecks.filter((c) => c.status === "WARNING").length
-  const healthPercent = Math.round((healthyChecks / (totalChecks || 1)) * 100)
+  const totalChecks = healthChecks.length
+  const healthyChecks = healthChecks.filter((c) => c.status === "HEALTHY").length
+  const warningChecks = healthChecks.filter((c) => c.status === "WARNING").length
+  const criticalChecks = healthChecks.filter(
+    (c) => c.status === "CRITICAL" || c.status === "UNHEALTHY"
+  ).length
+
+  const healthPercent = totalChecks > 0 ? Math.round((healthyChecks / totalChecks) * 100) : 0
+  const complianceScore = slaData?.slaPercentage != null ? `${slaData.slaPercentage}%` : `${healthPercent}%`
 
   return (
     <div className="space-y-7 text-slate-100">
@@ -92,24 +142,39 @@ function HealthMonitoring() {
             </span>
             <span className="text-slate-600">•</span>
             <span className="text-xs text-slate-400 font-mono">
-              Heartbeat Interval: 15s Continuous
+              Spring Boot Probes: {totalChecks} Active Targets
             </span>
           </div>
           <h1 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight mt-1">
             Infrastructure Health
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">
-            Synthetic uptime monitoring, microservice latency telemetry, and SLA compliance.
+            Asset uptime verification, health statuses, and SLA compliance calculated live from PostgreSQL.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
-            All Telemetry Nominal
-          </span>
+          <button
+            onClick={fetchHealthData}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition cursor-pointer"
+          >
+            <svg className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
         </div>
       </div>
+
+      {error && (
+        <ErrorState
+          title="Could Not Connect to Health Check Service"
+          message="Failed to fetch assets or asset health from Spring Boot. Ensure PostgreSQL is active."
+          error={error}
+          onRetry={fetchHealthData}
+        />
+      )}
 
       {/* 4 Health Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -125,12 +190,13 @@ function HealthMonitoring() {
             </div>
           </div>
           <div className="flex items-baseline gap-1 mt-2">
-            <span className="text-3xl font-extrabold text-white font-mono">{healthPercent}.4</span>
-            <span className="text-sm font-semibold text-slate-400 font-mono">%</span>
+            <span className="text-3xl font-extrabold text-white font-mono">{complianceScore}</span>
           </div>
           <div className="text-xs text-emerald-400 mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between">
-            <span>SLA Target: 99.0%</span>
-            <span className="text-slate-400 font-mono">Met (+0.4%)</span>
+            <span>SLA Status</span>
+            <span className="text-slate-400 font-mono">
+              {slaData?.compliant ? "COMPLIANT" : "MONITORING"}
+            </span>
           </div>
         </div>
 
@@ -149,91 +215,63 @@ function HealthMonitoring() {
             {healthyChecks} / {totalChecks}
           </div>
           <div className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-800/60">
-            {warningChecks} node running degraded tasks
+            Healthy infrastructure targets
           </div>
         </div>
 
-        {/* Average Ping Latency */}
+        {/* Warning / Degraded */}
         <div className="relative overflow-hidden rounded-xl bg-slate-900/80 border border-slate-800/80 p-5 shadow-md shadow-black/20">
-          <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-teal-500" />
+          <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-amber-500" />
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wide">
-            <span>Average Health Latency</span>
-            <div className="p-1.5 rounded bg-slate-800 text-teal-400">
+            <span>Degraded Targets</span>
+            <div className="p-1.5 rounded bg-slate-800 text-amber-400">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-              </svg>
-            </div>
-          </div>
-          <div className="flex items-baseline gap-1 mt-2">
-            <span className="text-3xl font-extrabold text-white font-mono">11.4</span>
-            <span className="text-sm font-semibold text-slate-400 font-mono">ms</span>
-          </div>
-          <div className="text-xs text-teal-400 mt-2 pt-2 border-t border-slate-800/60">
-            Within sub-20ms requirement
-          </div>
-        </div>
-
-        {/* Continuous Heartbeats */}
-        <div className="relative overflow-hidden rounded-xl bg-slate-900/80 border border-slate-800/80 p-5 shadow-md shadow-black/20">
-          <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-purple-500" />
-          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wide">
-            <span>Active Heartbeats</span>
-            <div className="p-1.5 rounded bg-slate-800 text-purple-400">
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
               </svg>
             </div>
           </div>
           <div className="text-3xl font-extrabold text-white font-mono mt-2">
-            100%
+            {warningChecks}
           </div>
-          <div className="text-xs text-purple-400 mt-2 pt-2 border-t border-slate-800/60">
-            0 missed packets in last 24h
+          <div className="text-xs text-amber-400 mt-2 pt-2 border-t border-slate-800/60">
+            Assets requiring attention
+          </div>
+        </div>
+
+        {/* Critical / Unhealthy */}
+        <div className="relative overflow-hidden rounded-xl bg-slate-900/80 border border-slate-800/80 p-5 shadow-md shadow-black/20">
+          <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-rose-500" />
+          <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wide">
+            <span>Critical / Unhealthy</span>
+            <div className="p-1.5 rounded bg-slate-800 text-rose-400">
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </div>
+          </div>
+          <div className="text-3xl font-extrabold text-white font-mono mt-2">
+            {criticalChecks}
+          </div>
+          <div className="text-xs text-rose-400 mt-2 pt-2 border-t border-slate-800/60">
+            Unhealthy health probe returns
           </div>
         </div>
       </div>
 
-      {/* Cluster Health Distribution Panel */}
-      <div className="rounded-xl bg-slate-900/80 border border-slate-800/80 p-6 shadow-md shadow-black/20">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
-          <div>
-            <h2 className="text-base font-bold text-white tracking-tight">
-              Cluster Service Health Distribution
-            </h2>
-            <p className="text-xs text-slate-400 mt-0.5">
-              Cumulative health breakdown across microservices and cluster nodes
-            </p>
-          </div>
-          <div className="flex items-center gap-2 text-xs">
-            <span className="px-2.5 py-1 rounded bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 font-medium">
-              Healthy: {healthyChecks} (96.4%)
-            </span>
-            <span className="px-2.5 py-1 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-medium">
-              Warning: {warningChecks} (3.6%)
-            </span>
-            <span className="px-2.5 py-1 rounded bg-rose-500/10 text-rose-400 border border-rose-500/20 font-medium">
-              Critical: 0 (0.0%)
-            </span>
-          </div>
+      {/* Filter Toolbar */}
+      <div className="p-4 rounded-xl bg-slate-900/80 border border-slate-800/80 flex items-center justify-between shadow-md shadow-black/20">
+        <div className="text-xs text-slate-400">
+          Filter health checks by operational state:
         </div>
 
-        <div className="w-full h-2.5 bg-slate-800 rounded-full overflow-hidden flex gap-0.5 mt-4">
-          <div className="h-full bg-emerald-500" style={{ width: "96.4%" }} />
-          <div className="h-full bg-amber-500" style={{ width: "3.6%" }} />
-        </div>
-      </div>
-
-      {/* Filter Tabs */}
-      <div className="flex items-center justify-between gap-4 p-4 rounded-xl bg-slate-900/80 border border-slate-800/80 shadow-md shadow-black/20">
         <div className="flex items-center gap-2 text-xs">
-          <span className="text-slate-400 font-semibold uppercase tracking-wider text-[11px]">Filter Checks:</span>
-          {["ALL", "HEALTHY", "WARNING"].map((status) => (
+          {["ALL", "HEALTHY", "WARNING", "UNHEALTHY"].map((status) => (
             <button
               key={status}
               onClick={() => setSelectedStatus(status)}
-              className={`px-3 py-1 rounded-md font-semibold transition-all ${
+              className={`px-3 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                 selectedStatus === status
-                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30"
+                  ? "bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-sm"
                   : "bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/60"
               }`}
             >
@@ -241,85 +279,91 @@ function HealthMonitoring() {
             </button>
           ))}
         </div>
-        <span className="text-xs text-slate-400 font-mono">
-          Showing {filteredChecks.length} checks
-        </span>
       </div>
 
-      {/* Health Checks Table */}
+      {/* Health Probes Table */}
       <div className="rounded-xl bg-slate-900/80 border border-slate-800/80 shadow-lg shadow-black/20 overflow-hidden">
-        <div className="p-5 border-b border-slate-800/80">
-          <h2 className="text-base font-bold text-white tracking-tight">
-            Detailed Service Health Checks
-          </h2>
-          <p className="text-xs text-slate-400 mt-0.5">
-            Automated synthetic tests evaluating node availability and response time
-          </p>
+        <div className="p-5 border-b border-slate-800/80 flex items-center justify-between">
+          <div>
+            <h2 className="text-base font-bold text-white tracking-tight">
+              Live Health Verification Probes
+            </h2>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Showing {filteredChecks.length} of {healthChecks.length} asset health records
+            </p>
+          </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-800/50 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
-              <tr>
-                <th className="py-3 px-5">Check ID</th>
-                <th className="py-3 px-5">Probe Name</th>
-                <th className="py-3 px-5">Target Node</th>
-                <th className="py-3 px-5">Protocol / Port</th>
-                <th className="py-3 px-5">Response Latency</th>
-                <th className="py-3 px-5">Success Rate</th>
-                <th className="py-3 px-5">Last Tested</th>
-                <th className="py-3 px-5">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-800/70">
-              {loading ? (
+        {loading ? (
+          <LoadingState message="Querying Spring Boot health probes..." />
+        ) : healthChecks.length === 0 ? (
+          <EmptyState
+            title="No Monitored Assets Available"
+            message="No assets are present in the PostgreSQL database to perform health checks against. Register an asset to initiate monitoring."
+            actionText="Refresh Health Probes"
+            onAction={fetchHealthData}
+          />
+        ) : filteredChecks.length === 0 ? (
+          <div className="p-8 text-center text-slate-400 text-xs">
+            No health probes match the specified filter.
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs">
+              <thead className="bg-slate-800/50 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
                 <tr>
-                  <td colSpan="8" className="py-8 text-center text-slate-400">
-                    Running synthetic health probes across cluster nodes...
-                  </td>
+                  <th className="py-3 px-5">Target Asset</th>
+                  <th className="py-3 px-5">Target ID</th>
+                  <th className="py-3 px-5">Workload Type</th>
+                  <th className="py-3 px-5">Endpoint / IP</th>
+                  <th className="py-3 px-5">Health Status</th>
+                  <th className="py-3 px-5">Last Checked</th>
                 </tr>
-              ) : filteredChecks.map((chk) => {
-                const isHealthy = chk.status === "HEALTHY"
-                return (
-                  <tr key={chk.id} className="hover:bg-slate-800/30 transition-colors">
-                    <td className="py-3.5 px-5 font-mono text-slate-400 text-[11px]">
-                      {chk.id}
-                    </td>
-                    <td className="py-3.5 px-5 font-bold text-white">
-                      {chk.name}
-                    </td>
-                    <td className="py-3.5 px-5 font-mono text-slate-300">
-                      {chk.target}
-                    </td>
-                    <td className="py-3.5 px-5 text-slate-400 font-mono text-[11px]">
-                      {chk.protocol}
-                    </td>
-                    <td className="py-3.5 px-5 font-mono text-blue-400 font-bold">
-                      {chk.latency}
-                    </td>
-                    <td className="py-3.5 px-5 font-mono text-emerald-400">
-                      {chk.successRate}
-                    </td>
-                    <td className="py-3.5 px-5 text-slate-400 text-[11px]">
-                      {chk.lastRun}
-                    </td>
-                    <td className="py-3.5 px-5">
-                      <span
-                        className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                          isHealthy
-                            ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
-                            : "bg-amber-500/15 text-amber-400 border border-amber-500/25"
-                        }`}
-                      >
-                        {chk.status}
-                      </span>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody className="divide-y divide-slate-800/70">
+                {filteredChecks.map((check) => {
+                  const isHealthy = check.status === "HEALTHY"
+                  const isWarning = check.status === "WARNING"
+
+                  return (
+                    <tr key={check.id} className="hover:bg-slate-800/30 transition-colors">
+                      <td className="py-3.5 px-5 font-bold text-white">
+                        {check.name}
+                      </td>
+                      <td className="py-3.5 px-5 font-mono text-slate-400 text-[11px]">
+                        #{check.id}
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">
+                          {check.type}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5 font-mono text-slate-300">
+                        {check.ip}
+                      </td>
+                      <td className="py-3.5 px-5">
+                        <span
+                          className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                            isHealthy
+                              ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/25"
+                              : isWarning
+                              ? "bg-amber-500/15 text-amber-400 border border-amber-500/25"
+                              : "bg-rose-500/15 text-rose-400 border border-rose-500/25"
+                          }`}
+                        >
+                          {check.status}
+                        </span>
+                      </td>
+                      <td className="py-3.5 px-5 text-slate-500 font-mono text-[11px]">
+                        {check.checkedAt}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-const API_BASE_URL = "http://localhost:8080/api"
+export const API_BASE_URL = "http://localhost:8080/api"
 
 // ===============================
 // ASSETS
@@ -8,7 +8,7 @@ export async function getAssets() {
   const response = await fetch(`${API_BASE_URL}/assets`)
 
   if (!response.ok) {
-    throw new Error("Failed to fetch assets")
+    throw new Error(`Failed to fetch assets (HTTP ${response.status})`)
   }
 
   return response.json()
@@ -18,7 +18,7 @@ export async function getAsset(id) {
   const response = await fetch(`${API_BASE_URL}/assets/${id}`)
 
   if (!response.ok) {
-    throw new Error("Failed to fetch asset")
+    throw new Error(`Failed to fetch asset #${id} (HTTP ${response.status})`)
   }
 
   return response.json()
@@ -29,13 +29,23 @@ export async function getAsset(id) {
 // INFRASTRUCTURE MONITORING
 // ===============================
 
+export async function getAllInfrastructureMetrics() {
+  const response = await fetch(`${API_BASE_URL}/infrastructure/metrics`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch infrastructure metrics (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
 export async function getMetrics(assetId) {
   const response = await fetch(
     `${API_BASE_URL}/infrastructure/assets/${assetId}/metrics`
   )
 
   if (!response.ok) {
-    throw new Error("Failed to fetch metrics")
+    throw new Error(`Failed to fetch metrics for asset #${assetId} (HTTP ${response.status})`)
   }
 
   return response.json()
@@ -47,7 +57,7 @@ export async function getHealth(assetId) {
   )
 
   if (!response.ok) {
-    throw new Error("Failed to fetch health")
+    throw new Error(`Failed to fetch health for asset #${assetId} (HTTP ${response.status})`)
   }
 
   return response.json()
@@ -64,7 +74,7 @@ export async function getCloudResources() {
   )
 
   if (!response.ok) {
-    throw new Error("Failed to fetch cloud resources")
+    throw new Error(`Failed to fetch cloud resources (HTTP ${response.status})`)
   }
 
   return response.json()
@@ -76,7 +86,7 @@ export async function getCloudHealth() {
   )
 
   if (!response.ok) {
-    throw new Error("Failed to fetch cloud health")
+    throw new Error(`Failed to fetch cloud health (HTTP ${response.status})`)
   }
 
   // Backend returns plain text: HEALTHY / UNHEALTHY
@@ -94,7 +104,7 @@ export async function getNetworkStatus() {
   )
 
   if (!response.ok) {
-    throw new Error("Failed to fetch network status")
+    throw new Error(`Failed to fetch network status (HTTP ${response.status})`)
   }
 
   // Backend returns plain text: UP / DOWN
@@ -107,7 +117,7 @@ export async function getNetworkMetrics() {
   )
 
   if (!response.ok) {
-    throw new Error("Failed to fetch network metrics")
+    throw new Error(`Failed to fetch network metrics (HTTP ${response.status})`)
   }
 
   return response.json()
@@ -124,7 +134,7 @@ export async function getAlerts() {
   )
 
   if (!response.ok) {
-    throw new Error("Failed to fetch alerts")
+    throw new Error(`Failed to fetch alerts (HTTP ${response.status})`)
   }
 
   return response.json()
@@ -136,7 +146,46 @@ export async function getAlert(id) {
   )
 
   if (!response.ok) {
-    throw new Error("Failed to fetch alert")
+    throw new Error(`Failed to fetch alert #${id} (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function acknowledgeAlert(id) {
+  const response = await fetch(`${API_BASE_URL}/alerts/${id}/acknowledge`, {
+    method: "PUT",
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to acknowledge alert #${id} (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function detectAnomalies() {
+  const response = await fetch(`${API_BASE_URL}/alerts/detect`, {
+    method: "POST",
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to run anomaly detection (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+
+// ===============================
+// SLA
+// ===============================
+
+export async function getSla() {
+  const response = await fetch(`${API_BASE_URL}/sla`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch SLA data (HTTP ${response.status})`)
   }
 
   return response.json()

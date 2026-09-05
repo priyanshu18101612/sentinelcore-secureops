@@ -1,85 +1,126 @@
-import { useEffect, useState, useMemo } from "react"
-import { getAlerts } from "../services/api"
-
-const BASE_MOCK_ALERTS = [
-  { id: "SEC-9041", severity: "CRITICAL", asset: "ingress-traefik-edge", category: "DDoS Mitigation", message: "DDoS rate burst detected: 14,200 req/s from AS-13335 blocked by rate limiter", time: "4m ago", status: "OPEN" },
-  { id: "SEC-9038", severity: "CRITICAL", asset: "auth-gateway-svc", category: "Brute Force", message: "SSH credential stuffing attempt: 48 failed attempts from IP 194.26.29.112 blocked", time: "12m ago", status: "INVESTIGATING" },
-  { id: "INF-8812", severity: "HIGH", asset: "worker-heavy-batch-04", category: "Memory Leak", message: "Heap threshold exceeded 85% on batch thread pool worker queue", time: "18m ago", status: "INVESTIGATING" },
-  { id: "SEC-8740", severity: "HIGH", asset: "auth-gateway-svc", category: "Auth Anomaly", message: "Suspicious JWT signature mismatch detected from unauthorized external origin", time: "42m ago", status: "INVESTIGATING" },
-  { id: "INF-8692", severity: "HIGH", asset: "postgres-primary-cluster", category: "Disk Pressure", message: "WAL archive directory disk usage reached 82% capacity threshold", time: "55m ago", status: "OPEN" },
-  { id: "INF-8619", severity: "MEDIUM", asset: "k8s-prod-cluster-01", category: "Autoscaling Event", message: "HPA reached max replica limit (16 pods) during morning traffic surge", time: "1h ago", status: "OPEN" },
-  { id: "INF-8605", severity: "MEDIUM", asset: "redis-cluster-cache", category: "Cache Eviction", message: "Key eviction rate spike: 1,420 keys evicted/sec under volatile memory policy", time: "1h 20m ago", status: "OPEN" },
-  { id: "INF-8580", severity: "MEDIUM", asset: "kafka-telemetry-pipe-01", category: "Consumer Lag", message: "Partition 4 consumer group lag exceeded 10,000 offset threshold", time: "1h 45m ago", status: "OPEN" },
-  { id: "INF-8550", severity: "LOW", asset: "postgres-primary-cluster", category: "Snapshot Verified", message: "Automated incremental backup snapshot verified and uploaded to encrypted S3 bucket", time: "2h ago", status: "RESOLVED" },
-  { id: "SEC-8490", severity: "LOW", asset: "ingress-traefik-edge", category: "TLS Renewal", message: "TLS certificate auto-renewed successfully for api.sentinelcore.io", time: "3h ago", status: "RESOLVED" },
-]
+import { useEffect, useState, useMemo, useCallback } from "react"
+import { getAlerts, acknowledgeAlert, detectAnomalies } from "../services/api"
+import { LoadingState, ErrorState, EmptyState } from "./StatusFeedback"
 
 function Alerts() {
-  const [apiAlerts, setApiAlerts] = useState([])
+  const [alerts, setAlerts] = useState([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [actionLoading, setActionLoading] = useState(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedSeverity, setSelectedSeverity] = useState("ALL")
 
-  useEffect(() => {
-    async function loadAlerts() {
-      try {
-        const data = await getAlerts()
-        if (Array.isArray(data)) {
-          setApiAlerts(data)
-        }
-      } catch (error) {
-        console.warn("Using baseline security alerts:", error)
-      } finally {
-        setLoading(false)
-      }
+  const fetchAlerts = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const data = await getAlerts()
+      setAlerts(Array.isArray(data) ? data : [])
+    } catch (err) {
+      console.error("Failed to load alerts from backend:", err)
+      setError(err)
+      setAlerts([])
+    } finally {
+      setLoading(false)
     }
-
-    loadAlerts()
   }, [])
 
-  // Combine backend alerts with rich security events
-  const allAlerts = useMemo(() => {
-    const formattedApiAlerts = apiAlerts.map((alert) => ({
-      id: `SEC-${alert.id}`,
-      severity: (alert.severity || "MEDIUM").toUpperCase(),
-      asset: `Asset #${alert.assetId || "system"}`,
-      category: alert.alertType || "Threshold Violation",
-      message: alert.message || "Automated infrastructure alert generated.",
-      time: "Recent",
-      status: (alert.status || "OPEN").toUpperCase(),
-    }))
+  useEffect(() => {
+    let ignore = false
+    getAlerts()
+      .then((data) => {
+        if (!ignore) {
+          setAlerts(Array.isArray(data) ? data : [])
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          console.error("Failed to load alerts from backend:", err)
+          setError(err)
+          setAlerts([])
+          setLoading(false)
+        }
+      })
+    return () => {
+      ignore = true
+    }
+  }, [])
 
-    const combined = [...formattedApiAlerts]
-    BASE_MOCK_ALERTS.forEach((item) => {
-      if (!combined.some((a) => a.id === item.id)) {
-        combined.push(item)
-      }
-    })
-    return combined
-  }, [apiAlerts])
+  const handleAcknowledge = async (id) => {
+    setActionLoading(id)
+    try {
+      const updated = await acknowledgeAlert(id)
+      setAlerts((prev) =>
+        prev.map((a) => (a.id === id ? { ...a, ...updated, status: "ACKNOWLEDGED" } : a))
+      )
+    } catch (err) {
+      console.error("Failed to acknowledge alert:", err)
+      alert(`Could not acknowledge alert: ${err.message}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleRunDetection = async () => {
+    setLoading(true)
+    try {
+      await detectAnomalies()
+      await fetchAlerts()
+    } catch (err) {
+      console.error("Failed to run anomaly detection:", err)
+      setError(err)
+      setLoading(false)
+    }
+  }
 
   const filteredAlerts = useMemo(() => {
-    return allAlerts.filter((alert) => {
+    return alerts.filter((alert) => {
+      const message = alert.message || ""
+      const category = alert.alertType || ""
+      const asset = alert.assetId != null ? `Asset #${alert.assetId}` : "System"
+      const id = String(alert.id || "")
+      const severity = (alert.severity || "MEDIUM").toUpperCase()
+      const status = (alert.status || "OPEN").toUpperCase()
+
+      const q = searchQuery.toLowerCase()
       const matchesSearch =
-        alert.message.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        alert.asset.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        alert.category.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        alert.id.toLowerCase().includes(searchQuery.toLowerCase())
+        !q ||
+        message.toLowerCase().includes(q) ||
+        category.toLowerCase().includes(q) ||
+        asset.toLowerCase().includes(q) ||
+        id.includes(q)
 
       const matchesSeverity =
         selectedSeverity === "ALL" ||
-        (selectedSeverity === "RESOLVED"
-          ? alert.status === "RESOLVED"
-          : alert.severity === selectedSeverity && alert.status !== "RESOLVED")
+        (selectedSeverity === "ACKNOWLEDGED"
+          ? status === "ACKNOWLEDGED"
+          : selectedSeverity === "RESOLVED"
+          ? status === "RESOLVED"
+          : severity === selectedSeverity && status !== "RESOLVED")
 
       return matchesSearch && matchesSeverity
     })
-  }, [allAlerts, searchQuery, selectedSeverity])
+  }, [alerts, searchQuery, selectedSeverity])
 
-  const activeCount = allAlerts.filter((a) => a.status !== "RESOLVED").length
-  const criticalCount = allAlerts.filter((a) => a.severity === "CRITICAL" && a.status !== "RESOLVED").length
-  const highCount = allAlerts.filter((a) => a.severity === "HIGH" && a.status !== "RESOLVED").length
-  const resolvedCount = allAlerts.filter((a) => a.status === "RESOLVED").length
+  const activeCount = alerts.filter(
+    (a) => (a.status || "").toUpperCase() !== "RESOLVED"
+  ).length
+  const criticalCount = alerts.filter(
+    (a) =>
+      (a.severity || "").toUpperCase() === "CRITICAL" &&
+      (a.status || "").toUpperCase() !== "RESOLVED"
+  ).length
+  const highCount = alerts.filter(
+    (a) =>
+      (a.severity || "").toUpperCase() === "HIGH" &&
+      (a.status || "").toUpperCase() !== "RESOLVED"
+  ).length
+  const resolvedCount = alerts.filter(
+    (a) =>
+      (a.status || "").toUpperCase() === "RESOLVED" ||
+      (a.status || "").toUpperCase() === "ACKNOWLEDGED"
+  ).length
 
   return (
     <div className="space-y-7 text-slate-100">
@@ -92,24 +133,50 @@ function Alerts() {
             </span>
             <span className="text-slate-600">•</span>
             <span className="text-xs text-slate-400 font-mono">
-              Detection Engine: Continuous Machine Learning
+              PostgreSQL Active Events: {alerts.length} Records
             </span>
           </div>
           <h1 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight mt-1">
             Infrastructure Security Alerts
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">
-            Real-time intrusion detection, anomaly threshold violations, and incident response tracking.
+            Real-time intrusion detection, anomaly threshold violations, and incident response tracking from Spring Boot API.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-rose-400 shadow-[0_0_6px_#f43f5e]" />
-            {activeCount} Active Threats
-          </span>
+          <button
+            onClick={handleRunDetection}
+            disabled={loading}
+            title="Trigger anomaly detection on current infrastructure metrics in backend"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-semibold transition cursor-pointer"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Trigger Anomaly Scan
+          </button>
+          <button
+            onClick={fetchAlerts}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition cursor-pointer"
+          >
+            <svg className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
         </div>
       </div>
+
+      {error && (
+        <ErrorState
+          title="Could Not Connect to Security Alerts Engine"
+          message="Failed to fetch incidents from GET /api/alerts. Ensure Spring Boot and PostgreSQL are active."
+          error={error}
+          onRetry={fetchAlerts}
+        />
+      )}
 
       {/* 4 Alert Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -170,11 +237,11 @@ function Alerts() {
           </div>
         </div>
 
-        {/* Resolved */}
+        {/* Resolved / Acknowledged */}
         <div className="relative overflow-hidden rounded-xl bg-slate-900/80 border border-slate-800/80 p-5 shadow-md shadow-black/20">
           <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-emerald-500" />
           <div className="flex items-center justify-between text-slate-400 text-xs font-semibold uppercase tracking-wide">
-            <span>Auto-Remediated / Resolved</span>
+            <span>Remediated / Acknowledged</span>
             <div className="p-1.5 rounded bg-slate-800 text-emerald-400">
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
@@ -185,7 +252,7 @@ function Alerts() {
             {resolvedCount}
           </div>
           <div className="text-xs text-emerald-400 mt-2 pt-2 border-t border-slate-800/60">
-            Verified in current window
+            Acknowledged or closed events
           </div>
         </div>
       </div>
@@ -207,11 +274,11 @@ function Alerts() {
 
         <div className="flex flex-wrap items-center gap-2 text-xs">
           <span className="text-slate-400 text-[11px] uppercase tracking-wider font-semibold">Severity:</span>
-          {["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW", "RESOLVED"].map((sev) => (
+          {["ALL", "CRITICAL", "HIGH", "MEDIUM", "LOW", "ACKNOWLEDGED", "RESOLVED"].map((sev) => (
             <button
               key={sev}
               onClick={() => setSelectedSeverity(sev)}
-              className={`px-2.5 py-1 rounded-md font-semibold transition-all ${
+              className={`px-2.5 py-1 rounded-md font-semibold transition-all cursor-pointer ${
                 selectedSeverity === sev
                   ? "bg-blue-500/20 text-blue-400 border border-blue-500/30 shadow-sm"
                   : "bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/60"
@@ -231,13 +298,13 @@ function Alerts() {
               Security & Infrastructure Incidents
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Showing {filteredAlerts.length} events
+              Showing {filteredAlerts.length} of {alerts.length} live database records
             </p>
           </div>
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="text-xs text-blue-400 hover:underline"
+              className="text-xs text-blue-400 hover:underline cursor-pointer"
             >
               Reset search
             </button>
@@ -245,9 +312,14 @@ function Alerts() {
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-slate-400 text-xs">
-            Loading incident feed...
-          </div>
+          <LoadingState message="Querying PostgreSQL alerts table via Spring Boot..." />
+        ) : alerts.length === 0 ? (
+          <EmptyState
+            title="No Security Incidents Found"
+            message="No alerts have been recorded in the database. When threshold violations occur or when anomaly scans run, incidents appear here."
+            actionText="Run Anomaly Scan Now"
+            onAction={handleRunDetection}
+          />
         ) : filteredAlerts.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-xs">
             No alerts found matching the selected criteria.
@@ -258,20 +330,23 @@ function Alerts() {
               <thead className="bg-slate-800/50 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
                 <tr>
                   <th className="py-3 px-5">Severity</th>
-                  <th className="py-3 px-5">Incident Tag</th>
-                  <th className="py-3 px-5">Category</th>
-                  <th className="py-3 px-5">Target Workload</th>
-                  <th className="py-3 px-5">Summary Message</th>
-                  <th className="py-3 px-5">Detected</th>
+                  <th className="py-3 px-5">Alert ID</th>
+                  <th className="py-3 px-5">Type / Category</th>
+                  <th className="py-3 px-5">Asset</th>
+                  <th className="py-3 px-5">Message</th>
+                  <th className="py-3 px-5">Detected At</th>
                   <th className="py-3 px-5">Status</th>
                   <th className="py-3 px-5 text-right">Action</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/70">
                 {filteredAlerts.map((alert) => {
-                  const isCrit = alert.severity === "CRITICAL"
-                  const isHigh = alert.severity === "HIGH"
-                  const isMed = alert.severity === "MEDIUM"
+                  const severity = (alert.severity || "MEDIUM").toUpperCase()
+                  const status = (alert.status || "OPEN").toUpperCase()
+                  const isCrit = severity === "CRITICAL"
+                  const isHigh = severity === "HIGH"
+                  const isMed = severity === "MEDIUM"
+                  const isAck = status === "ACKNOWLEDGED" || status === "RESOLVED"
 
                   return (
                     <tr key={alert.id} className="hover:bg-slate-800/30 transition-colors">
@@ -287,46 +362,56 @@ function Alerts() {
                               : "bg-sky-500/20 text-sky-400 border border-sky-500/30"
                           }`}
                         >
-                          {alert.severity}
+                          {severity}
                         </span>
                       </td>
                       <td className="py-3.5 px-5 font-mono text-blue-400 font-bold text-[11px]">
-                        {alert.id}
+                        #{alert.id}
                       </td>
                       <td className="py-3.5 px-5">
                         <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 text-[10px]">
-                          {alert.category}
+                          {alert.alertType || "SYSTEM_ALERT"}
                         </span>
                       </td>
                       <td className="py-3.5 px-5 font-mono text-slate-300">
-                        {alert.asset}
+                        {alert.assetId != null ? `Asset #${alert.assetId}` : "System"}
                       </td>
                       <td className="py-3.5 px-5 font-medium text-slate-100 max-w-md">
                         {alert.message}
                       </td>
                       <td className="py-3.5 px-5 text-slate-400 text-[11px] whitespace-nowrap">
-                        {alert.time}
+                        {alert.createdAt
+                          ? new Date(alert.createdAt).toLocaleString()
+                          : "—"}
                       </td>
                       <td className="py-3.5 px-5">
                         <span
                           className={`text-[9px] font-mono font-bold px-2 py-0.5 rounded uppercase ${
-                            alert.status === "RESOLVED"
+                            status === "RESOLVED"
                               ? "bg-emerald-500/15 text-emerald-400 border border-emerald-500/20"
-                              : alert.status === "INVESTIGATING"
-                              ? "bg-amber-500/15 text-amber-400 border border-amber-500/20"
+                              : status === "ACKNOWLEDGED"
+                              ? "bg-blue-500/15 text-blue-400 border border-blue-500/20"
                               : "bg-rose-500/15 text-rose-400 border border-rose-500/20"
                           }`}
                         >
-                          {alert.status}
+                          {status}
                         </span>
                       </td>
                       <td className="py-3.5 px-5 text-right whitespace-nowrap">
-                        <button
-                          type="button"
-                          className="px-2.5 py-1 text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
-                        >
-                          Investigate
-                        </button>
+                        {isAck ? (
+                          <span className="text-[11px] text-slate-500 italic">
+                            Acknowledged
+                          </span>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => handleAcknowledge(alert.id)}
+                            disabled={actionLoading === alert.id}
+                            className="px-2.5 py-1 text-[11px] font-semibold rounded bg-slate-800 hover:bg-slate-700 text-blue-400 border border-slate-700 hover:border-blue-500/40 transition-colors cursor-pointer"
+                          >
+                            {actionLoading === alert.id ? "Saving..." : "Acknowledge"}
+                          </button>
+                        )}
                       </td>
                     </tr>
                   )

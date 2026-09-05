@@ -1,95 +1,123 @@
-import { useEffect, useState, useMemo } from "react"
-import { getAssets } from "../services/api"
-
-// Default enterprise production assets if the backend only has 2 items
-const BASE_MOCK_ASSETS = [
-  { id: "AST-101", name: "k8s-prod-worker-01", type: "KUBERNETES NODE", region: "us-east-1a", status: "HEALTHY", cpu: 42, memory: 68, latency: "11ms", ip: "10.0.12.4" },
-  { id: "AST-102", name: "k8s-prod-worker-02", type: "KUBERNETES NODE", region: "us-east-1b", status: "HEALTHY", cpu: 46, memory: 71, latency: "14ms", ip: "10.0.12.5" },
-  { id: "AST-103", name: "postgres-primary-cluster", type: "DATABASE", region: "us-east-1a", status: "HEALTHY", cpu: 38, memory: 82, latency: "4ms", ip: "10.0.20.10" },
-  { id: "AST-104", name: "postgres-read-replica", type: "DATABASE", region: "us-east-1c", status: "HEALTHY", cpu: 29, memory: 64, latency: "5ms", ip: "10.0.20.11" },
-  { id: "AST-105", name: "redis-cluster-cache", type: "CACHE / IN-MEMORY", region: "us-east-1a", status: "HEALTHY", cpu: 22, memory: 89, latency: "1.2ms", ip: "10.0.30.2" },
-  { id: "AST-106", name: "ingress-traefik-edge", type: "API GATEWAY", region: "us-east-1a", status: "HEALTHY", cpu: 55, memory: 58, latency: "9ms", ip: "10.0.0.5" },
-  { id: "AST-107", name: "kafka-telemetry-pipe-01", type: "MESSAGE BROKER", region: "us-east-1b", status: "HEALTHY", cpu: 48, memory: 62, latency: "15ms", ip: "10.0.40.8" },
-  { id: "AST-108", name: "worker-heavy-batch-04", type: "JOB CONSUMER", region: "us-east-1c", status: "WARNING", cpu: 88, memory: 86, latency: "52ms", ip: "10.0.50.14" },
-  { id: "AST-109", name: "auth-sso-gateway-eu", type: "AUTH GATEWAY", region: "eu-central-1a", status: "HEALTHY", cpu: 31, memory: 44, latency: "78ms", ip: "172.16.1.10" },
-  { id: "AST-110", name: "s3-vault-backup-storage", type: "STORAGE", region: "us-east-1", status: "HEALTHY", cpu: 12, memory: 25, latency: "24ms", ip: "10.0.90.100" },
-  { id: "AST-111", name: "legacy-billing-bridge", type: "VIRTUAL MACHINE", region: "us-east-1d", status: "CRITICAL", cpu: 94, memory: 97, latency: "420ms", ip: "10.0.80.22" },
-]
+import { useEffect, useState, useMemo, useCallback } from "react"
+import { getAssets, getAllInfrastructureMetrics } from "../services/api"
+import { LoadingState, ErrorState, EmptyState } from "./StatusFeedback"
 
 function Assets() {
-  const [apiAssets, setApiAssets] = useState([])
+  const [assets, setAssets] = useState([])
+  const [metricsMap, setMetricsMap] = useState({})
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [searchQuery, setSearchQuery] = useState("")
   const [selectedType, setSelectedType] = useState("ALL")
   const [selectedStatus, setSelectedStatus] = useState("ALL")
 
-  useEffect(() => {
-    async function loadAssets() {
-      try {
-        const data = await getAssets()
-        if (Array.isArray(data)) {
-          setApiAssets(data)
-        }
-      } catch (error) {
-        console.warn("Backend assets offline, using catalog:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
+  const fetchAssets = useCallback(async () => {
+    setLoading(true)
+    setError(null)
+    try {
+      const [assetsData, metricsData] = await Promise.all([
+        getAssets(),
+        getAllInfrastructureMetrics().catch(() => []),
+      ])
 
-    loadAssets()
+      if (Array.isArray(assetsData)) {
+        setAssets(assetsData)
+      } else {
+        setAssets([])
+      }
+
+      // Map latest metric by assetId
+      if (Array.isArray(metricsData) && metricsData.length > 0) {
+        const map = {}
+        metricsData.forEach((m) => {
+          if (m.assetId != null) {
+            map[m.assetId] = m
+          }
+        })
+        setMetricsMap(map)
+      } else {
+        setMetricsMap({})
+      }
+    } catch (err) {
+      console.error("Failed to load assets from backend:", err)
+      setError(err)
+      setAssets([])
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
-  // Merge real API assets with catalog items if real assets are limited
-  const allAssets = useMemo(() => {
-    const formattedApiAssets = apiAssets.map((asset, index) => {
-      const seed = Number(asset.id) || (index + 1)
-      return {
-        id: `AST-${asset.id || index + 1}`,
-        name: asset.name || `Asset #${asset.id || index + 1}`,
-        type: (asset.type || "VIRTUAL MACHINE").toUpperCase(),
-        region: "us-east-1",
-        status: (asset.status || "HEALTHY").toUpperCase(),
-        cpu: 30 + (seed * 17) % 40,
-        memory: 45 + (seed * 23) % 35,
-        latency: `${10 + (seed * 3) % 15}ms`,
-        ip: `10.0.10.${asset.id || index + 10}`,
-      }
-    })
-
-    // Combine avoiding duplicate IDs
-    const combined = [...formattedApiAssets]
-    BASE_MOCK_ASSETS.forEach((item) => {
-      if (!combined.some((a) => a.name === item.name)) {
-        combined.push(item)
-      }
-    })
-    return combined
-  }, [apiAssets])
+  useEffect(() => {
+    let ignore = false
+    Promise.all([
+      getAssets(),
+      getAllInfrastructureMetrics().catch(() => []),
+    ])
+      .then(([assetsData, metricsData]) => {
+        if (!ignore) {
+          setAssets(Array.isArray(assetsData) ? assetsData : [])
+          if (Array.isArray(metricsData) && metricsData.length > 0) {
+            const map = {}
+            metricsData.forEach((m) => {
+              if (m.assetId != null) {
+                map[m.assetId] = m
+              }
+            })
+            setMetricsMap(map)
+          } else {
+            setMetricsMap({})
+          }
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          console.error("Failed to load assets from backend:", err)
+          setError(err)
+          setAssets([])
+          setLoading(false)
+        }
+      })
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   // Filtered assets
   const filteredAssets = useMemo(() => {
-    return allAssets.filter((asset) => {
+    return assets.filter((asset) => {
+      const name = asset.name || ""
+      const type = asset.type || ""
+      const ip = asset.ipAddress || ""
+      const location = asset.location || ""
+      const status = (asset.status || "HEALTHY").toUpperCase()
+      const id = String(asset.id || "")
+
+      const q = searchQuery.toLowerCase()
       const matchesSearch =
-        asset.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        asset.type.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        asset.ip.includes(searchQuery) ||
-        asset.id.toLowerCase().includes(searchQuery.toLowerCase())
+        !q ||
+        name.toLowerCase().includes(q) ||
+        type.toLowerCase().includes(q) ||
+        ip.toLowerCase().includes(q) ||
+        location.toLowerCase().includes(q) ||
+        id.includes(q)
 
       const matchesType =
-        selectedType === "ALL" || asset.type.includes(selectedType)
+        selectedType === "ALL" || type.toUpperCase().includes(selectedType)
 
       const matchesStatus =
-        selectedStatus === "ALL" || asset.status === selectedStatus
+        selectedStatus === "ALL" || status === selectedStatus
 
       return matchesSearch && matchesType && matchesStatus
     })
-  }, [allAssets, searchQuery, selectedType, selectedStatus])
+  }, [assets, searchQuery, selectedType, selectedStatus])
 
-  const totalCount = allAssets.length
-  const healthyCount = allAssets.filter((a) => a.status === "HEALTHY").length
-  const warningCount = allAssets.filter((a) => a.status === "WARNING").length
-  const criticalCount = allAssets.filter((a) => a.status === "CRITICAL").length
+  const totalCount = assets.length
+  const healthyCount = assets.filter((a) => (a.status || "").toUpperCase() === "HEALTHY").length
+  const warningCount = assets.filter((a) => (a.status || "").toUpperCase() === "WARNING").length
+  const criticalCount = assets.filter(
+    (a) => (a.status || "").toUpperCase() === "CRITICAL" || (a.status || "").toUpperCase() === "UNHEALTHY"
+  ).length
 
   return (
     <div className="space-y-7 text-slate-100">
@@ -102,24 +130,39 @@ function Assets() {
             </span>
             <span className="text-slate-600">•</span>
             <span className="text-xs text-slate-400 font-mono">
-              Total Managed: {totalCount} Host Units
+              PostgreSQL Active: {totalCount} Host Units
             </span>
           </div>
           <h1 className="text-2xl lg:text-3xl font-extrabold text-white tracking-tight mt-1">
             Asset Inventory
           </h1>
           <p className="text-sm text-slate-400 mt-0.5">
-            Real-time topology, node health statuses, and runtime telemetry for registered workloads.
+            Real-time topology, node health statuses, and runtime telemetry directly from the Spring Boot API.
           </p>
         </div>
 
         <div className="flex items-center gap-2">
-          <span className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">
-            <span className="w-2 h-2 rounded-full bg-emerald-400 shadow-[0_0_6px_#10b981]" />
-            Asset Registry Active
-          </span>
+          <button
+            onClick={fetchAssets}
+            disabled={loading}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-semibold transition cursor-pointer"
+          >
+            <svg className={`w-3.5 h-3.5 ${loading ? "animate-spin" : ""}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            Refresh
+          </button>
         </div>
       </div>
+
+      {error && (
+        <ErrorState
+          title="Could Not Connect to Asset Registry"
+          message="Failed to fetch assets from GET /api/assets. Ensure the backend and database are active."
+          error={error}
+          onRetry={fetchAssets}
+        />
+      )}
 
       {/* 4 Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
@@ -138,7 +181,7 @@ function Assets() {
             {totalCount}
           </div>
           <div className="text-xs text-slate-400 mt-2 pt-2 border-t border-slate-800/60">
-            Across 3 regions & availability zones
+            Registered in PostgreSQL database
           </div>
         </div>
 
@@ -158,7 +201,9 @@ function Assets() {
           </div>
           <div className="text-xs text-emerald-400 mt-2 pt-2 border-t border-slate-800/60 flex items-center justify-between">
             <span>Operating nominally</span>
-            <span className="font-mono font-bold">{Math.round((healthyCount / totalCount) * 100)}%</span>
+            <span className="font-mono font-bold">
+              {totalCount > 0 ? `${Math.round((healthyCount / totalCount) * 100)}%` : "0%"}
+            </span>
           </div>
         </div>
 
@@ -177,7 +222,7 @@ function Assets() {
             {warningCount}
           </div>
           <div className="text-xs text-amber-400 mt-2 pt-2 border-t border-slate-800/60">
-            Resource threshold elevated (&gt;85%)
+            Assets with warning state
           </div>
         </div>
 
@@ -196,7 +241,7 @@ function Assets() {
             {criticalCount}
           </div>
           <div className="text-xs text-rose-400 mt-2 pt-2 border-t border-slate-800/60">
-            Immediate remediation needed
+            Critical or unhealthy state
           </div>
         </div>
       </div>
@@ -210,7 +255,7 @@ function Assets() {
           </svg>
           <input
             type="text"
-            placeholder="Search by asset name, IP, or type..."
+            placeholder="Search by name, IP, location, type..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             className="w-full bg-slate-800/80 border border-slate-700/80 rounded-lg pl-9 pr-4 py-2 text-xs text-slate-100 placeholder-slate-400 focus:outline-none focus:border-blue-500 transition-colors"
@@ -238,7 +283,7 @@ function Assets() {
 
           <div className="flex items-center gap-1.5 border-l border-slate-700/60 pl-3">
             <span className="text-slate-400 text-[11px] uppercase tracking-wider font-semibold">Type:</span>
-            {["ALL", "VIRTUAL MACHINE", "DATABASE", "KUBERNETES"].map((type) => (
+            {["ALL", "SERVER", "DATABASE", "VIRTUAL MACHINE", "CONTAINER"].map((type) => (
               <button
                 key={type}
                 onClick={() => setSelectedType(type)}
@@ -248,7 +293,7 @@ function Assets() {
                     : "bg-slate-800/60 text-slate-400 hover:text-slate-200 border border-slate-700/60"
                 }`}
               >
-                {type === "VIRTUAL MACHINE" ? "VM" : type === "KUBERNETES" ? "K8S" : type === "DATABASE" ? "DB" : "ALL"}
+                {type}
               </button>
             ))}
           </div>
@@ -263,13 +308,13 @@ function Assets() {
               Registered Infrastructure Assets
             </h2>
             <p className="text-xs text-slate-400 mt-0.5">
-              Showing {filteredAssets.length} of {allAssets.length} assets
+              Showing {filteredAssets.length} of {assets.length} live database records
             </p>
           </div>
           {searchQuery && (
             <button
               onClick={() => setSearchQuery("")}
-              className="text-xs text-blue-400 hover:underline"
+              className="text-xs text-blue-400 hover:underline cursor-pointer"
             >
               Reset search
             </button>
@@ -277,9 +322,14 @@ function Assets() {
         </div>
 
         {loading ? (
-          <div className="p-8 text-center text-slate-400 text-xs">
-            Loading asset catalog...
-          </div>
+          <LoadingState message="Querying PostgreSQL assets table via Spring Boot..." />
+        ) : assets.length === 0 ? (
+          <EmptyState
+            title="No Assets Found"
+            message="No assets have been created in the database. Use POST /api/assets to register your first asset."
+            actionText="Refresh Catalog"
+            onAction={fetchAssets}
+          />
         ) : filteredAssets.length === 0 ? (
           <div className="p-8 text-center text-slate-400 text-xs">
             No assets match the specified filters.
@@ -289,73 +339,82 @@ function Assets() {
             <table className="w-full text-left text-xs">
               <thead className="bg-slate-800/50 border-b border-slate-800 text-slate-400 uppercase tracking-wider font-semibold">
                 <tr>
-                  <th className="py-3 px-5">Asset Tag</th>
-                  <th className="py-3 px-5">Name & IP</th>
-                  <th className="py-3 px-5">Type / Role</th>
-                  <th className="py-3 px-5">Region</th>
-                  <th className="py-3 px-5">CPU Load</th>
-                  <th className="py-3 px-5">RAM Load</th>
-                  <th className="py-3 px-5">Ping</th>
+                  <th className="py-3 px-5">ID</th>
+                  <th className="py-3 px-5">Asset Name</th>
+                  <th className="py-3 px-5">Type</th>
+                  <th className="py-3 px-5">IP Address</th>
+                  <th className="py-3 px-5">Location</th>
+                  <th className="py-3 px-5">Live CPU Load</th>
+                  <th className="py-3 px-5">Live RAM Load</th>
                   <th className="py-3 px-5">Health</th>
-                  <th className="py-3 px-5 text-right">Action</th>
+                  <th className="py-3 px-5">Created</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-800/70">
                 {filteredAssets.map((asset) => {
-                  const isHealthy = asset.status === "HEALTHY"
-                  const isWarning = asset.status === "WARNING"
+                  const status = (asset.status || "HEALTHY").toUpperCase()
+                  const isHealthy = status === "HEALTHY"
+                  const isWarning = status === "WARNING"
+                  const metric = metricsMap[asset.id]
 
                   return (
                     <tr key={asset.id} className="hover:bg-slate-800/30 transition-colors">
                       <td className="py-3.5 px-5 font-mono text-slate-400 text-[11px]">
-                        {asset.id}
+                        #{asset.id}
                       </td>
                       <td className="py-3.5 px-5">
                         <div className="font-bold text-white">{asset.name}</div>
-                        <div className="text-[11px] font-mono text-slate-400">{asset.ip}</div>
                       </td>
                       <td className="py-3.5 px-5">
                         <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">
-                          {asset.type}
+                          {asset.type || "SERVER"}
                         </span>
                       </td>
-                      <td className="py-3.5 px-5 text-slate-400 font-mono text-[11px]">
-                        {asset.region}
+                      <td className="py-3.5 px-5 font-mono text-slate-300 text-[11px]">
+                        {asset.ipAddress || "—"}
                       </td>
-                      {/* CPU Mini Bar */}
+                      <td className="py-3.5 px-5 text-slate-400 text-[11px]">
+                        {asset.location || "—"}
+                      </td>
+                      {/* Real CPU Metric from backend if recorded */}
                       <td className="py-3.5 px-5">
-                        <div className="w-24">
-                          <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                            <span>{asset.cpu}%</span>
+                        {metric && metric.cpuUsage != null ? (
+                          <div className="w-24">
+                            <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                              <span>{metric.cpuUsage}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  metric.cpuUsage > 80 ? "bg-amber-400" : "bg-blue-400"
+                                }`}
+                                style={{ width: `${Math.min(100, metric.cpuUsage)}%` }}
+                              />
+                            </div>
                           </div>
-                          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                asset.cpu > 80 ? "bg-amber-400" : "bg-blue-400"
-                              }`}
-                              style={{ width: `${asset.cpu}%` }}
-                            />
-                          </div>
-                        </div>
+                        ) : (
+                          <span className="text-slate-500 font-mono text-[11px]">—</span>
+                        )}
                       </td>
-                      {/* RAM Mini Bar */}
+                      {/* Real RAM Metric from backend if recorded */}
                       <td className="py-3.5 px-5">
-                        <div className="w-24">
-                          <div className="flex justify-between text-[10px] text-slate-400 mb-1">
-                            <span>{asset.memory}%</span>
+                        {metric && metric.memoryUsage != null ? (
+                          <div className="w-24">
+                            <div className="flex justify-between text-[10px] text-slate-400 mb-1">
+                              <span>{metric.memoryUsage}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+                              <div
+                                className={`h-full rounded-full ${
+                                  metric.memoryUsage > 85 ? "bg-amber-400" : "bg-purple-400"
+                                }`}
+                                style={{ width: `${Math.min(100, metric.memoryUsage)}%` }}
+                              />
+                            </div>
                           </div>
-                          <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
-                            <div
-                              className={`h-full rounded-full ${
-                                asset.memory > 85 ? "bg-amber-400" : "bg-purple-400"
-                              }`}
-                              style={{ width: `${asset.memory}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3.5 px-5 font-mono text-blue-400 text-[11px]">
-                        {asset.latency}
+                        ) : (
+                          <span className="text-slate-500 font-mono text-[11px]">—</span>
+                        )}
                       </td>
                       <td className="py-3.5 px-5">
                         <span
@@ -367,16 +426,11 @@ function Assets() {
                               : "bg-rose-500/15 text-rose-400 border border-rose-500/25"
                           }`}
                         >
-                          {asset.status}
+                          {status}
                         </span>
                       </td>
-                      <td className="py-3.5 px-5 text-right">
-                        <button
-                          type="button"
-                          className="px-2.5 py-1 text-[11px] rounded bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition-colors"
-                        >
-                          Inspect
-                        </button>
+                      <td className="py-3.5 px-5 text-slate-500 font-mono text-[11px]">
+                        {asset.createdAt ? new Date(asset.createdAt).toLocaleDateString() : "—"}
                       </td>
                     </tr>
                   )
