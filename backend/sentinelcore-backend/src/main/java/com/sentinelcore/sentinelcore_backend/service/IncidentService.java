@@ -29,7 +29,34 @@ public class IncidentService {
     }
 
     public Incident createIncident(Incident incident) {
-        return incidentRepository.save(incident);
+    if (incident.getIncidentId() == null || incident.getIncidentId().isBlank()) {
+        incident.setIncidentId(generateIncidentId());
+    }
+
+    return incidentRepository.save(incident);
+    }
+
+   private String generateIncidentId() {
+
+    int year = java.time.LocalDateTime.now().getYear();
+
+    int nextNumber = incidentRepository
+            .findTopByOrderByIdDesc()
+            .map(lastIncident -> {
+                try {
+                    String incidentId = lastIncident.getIncidentId();
+
+                    String[] parts = incidentId.split("-");
+
+                    return Integer.parseInt(parts[2]) + 1;
+
+                } catch (Exception e) {
+                    return 1;
+                }
+            })
+            .orElse(1);
+
+    return String.format("INC-%d-%03d", year, nextNumber);
     }
 
     public Incident updateIncident(Long id, Incident updatedIncident) {
@@ -37,7 +64,7 @@ public class IncidentService {
         Incident existingIncident = incidentRepository.findById(id)
                 .orElseThrow(() -> new RuntimeException("Incident not found with id: " + id));
 
-        existingIncident.setIncidentId(updatedIncident.getIncidentId());
+       // existingIncident.setIncidentId(updatedIncident.getIncidentId());
         existingIncident.setTitle(updatedIncident.getTitle());
         existingIncident.setDescription(updatedIncident.getDescription());
         existingIncident.setSeverity(updatedIncident.getSeverity());
