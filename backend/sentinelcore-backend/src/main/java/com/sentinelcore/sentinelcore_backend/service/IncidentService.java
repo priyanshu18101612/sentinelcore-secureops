@@ -11,13 +11,9 @@ import java.util.Optional;
 public class IncidentService {
 
     private final IncidentRepository incidentRepository;
-    private final AuditLogService auditLogService;
 
-    public IncidentService(
-            IncidentRepository incidentRepository,
-            AuditLogService auditLogService) {
+    public IncidentService(IncidentRepository incidentRepository) {
         this.incidentRepository = incidentRepository;
-        this.auditLogService = auditLogService;
     }
 
     public List<Incident> getAllIncidents() {
@@ -33,112 +29,15 @@ public class IncidentService {
     }
 
     public Incident createIncident(Incident incident) {
-
-        if (incident.getIncidentId() == null || incident.getIncidentId().isBlank()) {
-            incident.setIncidentId(generateIncidentId());
-        }
-
-        Incident savedIncident = incidentRepository.save(incident);
-
-        auditLogService.logAction(
-                savedIncident.getId(),
-                "INCIDENT_CREATED",
-                "SYSTEM",
-                "IncidentService",
-                "Incident created: " + savedIncident.getIncidentId()
-        );
-
-        return savedIncident;
-    }
-
-    private String generateIncidentId() {
-
-        int year = java.time.LocalDateTime.now().getYear();
-
-        int nextNumber = incidentRepository
-                .findTopByOrderByIdDesc()
-                .map(lastIncident -> {
-                    try {
-                        String incidentId = lastIncident.getIncidentId();
-                        String[] parts = incidentId.split("-");
-                        return Integer.parseInt(parts[2]) + 1;
-                    } catch (Exception e) {
-                        return 1;
-                    }
-                })
-                .orElse(1);
-
-        return String.format("INC-%d-%03d", year, nextNumber);
+        return incidentRepository.save(incident);
     }
 
     public Incident updateIncident(Long id, Incident updatedIncident) {
 
         Incident existingIncident = incidentRepository.findById(id)
-                .orElseThrow(() ->
-                        new RuntimeException("Incident not found with id: " + id));
+                .orElseThrow(() -> new RuntimeException("Incident not found with id: " + id));
 
-        if (updatedIncident.getSeverity() != null &&
-                updatedIncident.getSeverity() != existingIncident.getSeverity()) {
-
-            auditLogService.logAction(
-                    id,
-                    "SEVERITY_CHANGED",
-                    "SYSTEM",
-                    "IncidentService",
-                    "Severity changed from "
-                            + existingIncident.getSeverity()
-                            + " to "
-                            + updatedIncident.getSeverity()
-            );
-        }
-
-        if (updatedIncident.getAssignedTeam() != null &&
-                !updatedIncident.getAssignedTeam()
-                        .equals(existingIncident.getAssignedTeam())) {
-
-            String action = existingIncident.getAssignedTeam() == null
-                    ? "ASSIGNED"
-                    : "REASSIGNED";
-
-            auditLogService.logAction(
-                    id,
-                    action,
-                    "SYSTEM",
-                    "IncidentService",
-                    "Team changed from "
-                            + existingIncident.getAssignedTeam()
-                            + " to "
-                            + updatedIncident.getAssignedTeam()
-            );
-        }
-
-        if (updatedIncident.getStatus() != null &&
-                updatedIncident.getStatus() != existingIncident.getStatus()) {
-
-            auditLogService.logAction(
-                    id,
-                    "STATUS_CHANGED",
-                    "SYSTEM",
-                    "IncidentService",
-                    "Status changed from "
-                            + existingIncident.getStatus()
-                            + " to "
-                            + updatedIncident.getStatus()
-            );
-        }
-
-        if (updatedIncident.getResolvedAt() != null &&
-                existingIncident.getResolvedAt() == null) {
-
-            auditLogService.logAction(
-                    id,
-                    "RESOLVED",
-                    "SYSTEM",
-                    "IncidentService",
-                    "Incident resolved"
-            );
-        }
-
+        existingIncident.setIncidentId(updatedIncident.getIncidentId());
         existingIncident.setTitle(updatedIncident.getTitle());
         existingIncident.setDescription(updatedIncident.getDescription());
         existingIncident.setSeverity(updatedIncident.getSeverity());
