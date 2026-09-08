@@ -8,6 +8,7 @@ import HealthMonitoring from "./components/HealthMonitoring"
 import Alerts from "./components/Alerts"
 import CloudMonitoring from "./components/CloudMonitoring"
 import NetworkMonitoring from "./components/NetworkMonitoring"
+import IncidentManagement from "./components/IncidentManagement"
 
 function App() {
   // Get the currently logged-in user from localStorage
@@ -50,6 +51,11 @@ function App() {
       name: "Network Monitoring",
       icon: "⌁",
       description: "Network Status",
+    },
+    {
+      name: "Incident Management",
+      icon: "⚡",
+      description: "Security Incidents",
     },
   ]
 
@@ -272,7 +278,9 @@ function App() {
           {activePage === "Network Monitoring" && (
             <NetworkMonitoring />
           )}
-
+          {activePage === "Incident Management" && (
+            <IncidentManagement />
+          )}
         </main>
 
       </div>

@@ -8,4 +8,5 @@ import java.util.Optional;
 public interface IncidentRepository extends JpaRepository<Incident, Long> {
 
     Optional<Incident> findByIncidentId(String incidentId);
+    Optional<Incident> findTopByOrderByIdDesc();
 }
