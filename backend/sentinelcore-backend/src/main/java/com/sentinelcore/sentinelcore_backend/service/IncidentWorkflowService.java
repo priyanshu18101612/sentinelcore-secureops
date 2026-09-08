@@ -10,55 +10,79 @@ import java.time.LocalDateTime;
 import java.util.Map;
 import java.util.Set;
 
-/**
- * Member 3 — Severity, Assignment, Status-Transition & Resolution workflow.
- * Built entirely on top of Priyanshu's (Member 2) shared Incident entity and
- * IncidentRepository. No new Incident model is created here.
- */
 @Service
 public class IncidentWorkflowService {
 
     private final IncidentRepository incidentRepository;
+    private final AuditLogService auditLogService;
 
-    // Allowed status transitions — enforces the agreed lifecycle:
-    // OPEN -> ASSIGNED -> INVESTIGATING -> RESOLVED
     private static final Map<IncidentStatus, Set<IncidentStatus>> ALLOWED_TRANSITIONS = Map.of(
             IncidentStatus.OPEN, Set.of(IncidentStatus.ASSIGNED),
             IncidentStatus.ASSIGNED, Set.of(IncidentStatus.INVESTIGATING),
             IncidentStatus.INVESTIGATING, Set.of(IncidentStatus.RESOLVED),
-            IncidentStatus.RESOLVED, Set.of() // terminal state, no further transitions
+            IncidentStatus.RESOLVED, Set.of()
     );
 
-    public IncidentWorkflowService(IncidentRepository incidentRepository) {
+    public IncidentWorkflowService(
+            IncidentRepository incidentRepository,
+            AuditLogService auditLogService) {
         this.incidentRepository = incidentRepository;
+        this.auditLogService = auditLogService;
     }
 
-    // A. Severity classification
     public Incident updateSeverity(Long incidentId, Severity newSeverity) {
         Incident incident = getOrThrow(incidentId);
+        Severity oldSeverity = incident.getSeverity();
+
         incident.setSeverity(newSeverity);
-        return incidentRepository.save(incident);
+        Incident saved = incidentRepository.save(incident);
+
+        if (oldSeverity != newSeverity) {
+            auditLogService.logAction(
+                    incidentId,
+                    "SEVERITY_CHANGED",
+                    "SYSTEM",
+                    "IncidentWorkflowService",
+                    "Severity changed from " + oldSeverity + " to " + newSeverity
+            );
+        }
+
+        return saved;
     }
 
-    // B. Assignment
     public Incident assignTeam(Long incidentId, String team) {
         Incident incident = getOrThrow(incidentId);
+
+        String oldTeam = incident.getAssignedTeam();
+
         incident.setAssignedTeam(team);
         incident.setAssignedAt(LocalDateTime.now());
 
-        // Assigning a team also advances status forward if it is still OPEN
         if (incident.getStatus() == IncidentStatus.OPEN) {
             incident.setStatus(IncidentStatus.ASSIGNED);
         }
-        return incidentRepository.save(incident);
+
+        Incident saved = incidentRepository.save(incident);
+
+        String action = oldTeam == null ? "ASSIGNED" : "REASSIGNED";
+
+        auditLogService.logAction(
+                incidentId,
+                action,
+                "SYSTEM",
+                "IncidentWorkflowService",
+                "Team changed from " + oldTeam + " to " + team
+        );
+
+        return saved;
     }
 
-    // C. Status transition (state machine enforced)
     public Incident transitionStatus(Long incidentId, IncidentStatus newStatus) {
         Incident incident = getOrThrow(incidentId);
         IncidentStatus current = incident.getStatus();
 
-        Set<IncidentStatus> allowedNext = ALLOWED_TRANSITIONS.getOrDefault(current, Set.of());
+        Set<IncidentStatus> allowedNext =
+                ALLOWED_TRANSITIONS.getOrDefault(current, Set.of());
 
         if (!allowedNext.contains(newStatus)) {
             throw new IllegalStateException(
@@ -67,10 +91,19 @@ public class IncidentWorkflowService {
         }
 
         incident.setStatus(newStatus);
-        return incidentRepository.save(incident);
+        Incident saved = incidentRepository.save(incident);
+
+        auditLogService.logAction(
+                incidentId,
+                "STATUS_CHANGED",
+                "SYSTEM",
+                "IncidentWorkflowService",
+                "Status changed from " + current + " to " + newStatus
+        );
+
+        return saved;
     }
 
-    // D. Resolution
     public Incident resolveIncident(Long incidentId, String resolutionNotes) {
         Incident incident = getOrThrow(incidentId);
 
@@ -83,11 +116,23 @@ public class IncidentWorkflowService {
         incident.setStatus(IncidentStatus.RESOLVED);
         incident.setResolutionNotes(resolutionNotes);
         incident.setResolvedAt(LocalDateTime.now());
-        return incidentRepository.save(incident);
+
+        Incident saved = incidentRepository.save(incident);
+
+        auditLogService.logAction(
+                incidentId,
+                "RESOLVED",
+                "SYSTEM",
+                "IncidentWorkflowService",
+                "Incident resolved"
+        );
+
+        return saved;
     }
 
     private Incident getOrThrow(Long id) {
         return incidentRepository.findById(id)
-                .orElseThrow(() -> new IllegalArgumentException("Incident not found: " + id));
+                .orElseThrow(() ->
+                        new IllegalArgumentException("Incident not found: " + id));
     }
 }
