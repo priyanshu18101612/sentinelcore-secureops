@@ -147,13 +147,13 @@ function IncidentTable({
               >
                 {/* ID */}
                 <td className="py-3.5 px-5 font-mono text-cyan-400 font-bold whitespace-nowrap">
-                  #INC-{incident.id}
+                  {incident.incidentId || `#INC-${incident.id}`}
                 </td>
 
                 {/* Title / Description */}
                 <td className="py-3.5 px-5 max-w-xs">
                   <div className="font-semibold text-white truncate">
-                    {incident.title || `Incident #${incident.id}`}
+                    {incident.title || incident.incidentId || `Incident #${incident.id}`}
                   </div>
                   {incident.description && (
                     <div className="text-slate-400 text-[11px] truncate mt-0.5">

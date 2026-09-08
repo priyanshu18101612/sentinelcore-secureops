@@ -72,7 +72,7 @@ function IncidentDetailsDrawer({
           <div>
             <div className="flex items-center gap-2 mb-1.5">
               <span className="font-mono text-xs font-bold text-cyan-400 bg-cyan-500/10 px-2 py-0.5 rounded border border-cyan-500/20">
-                #INC-{incident.id}
+                {incident.incidentId || `#INC-${incident.id}`}
               </span>
               <span
                 className={`text-[10px] font-bold px-2 py-0.5 rounded border uppercase tracking-wider ${getSeverityBadge(
@@ -90,7 +90,7 @@ function IncidentDetailsDrawer({
               </span>
             </div>
             <h2 className="text-xl font-bold text-white tracking-tight">
-              {incident.title || `Incident #${incident.id}`}
+              {incident.title || incident.incidentId || `Incident #${incident.id}`}
             </h2>
           </div>
 

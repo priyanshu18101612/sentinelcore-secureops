@@ -117,15 +117,21 @@ function CreateIncidentModal({ isOpen, onClose, onSuccess }) {
 
           {/* Description */}
           <div>
-            <label className="block text-slate-300 font-semibold mb-1">
-              Description & Context <span className="text-rose-400">*</span>
-            </label>
+            <div className="flex items-center justify-between mb-1">
+              <label className="text-slate-300 font-semibold">
+                Description & Context <span className="text-rose-400">*</span>
+              </label>
+              <span className="text-[10px] font-mono text-slate-500">
+                {description.length}/1000
+              </span>
+            </div>
             <textarea
               required
               rows={4}
+              maxLength={1000}
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="Provide event details, impacted assets, anomalous metrics, or IOC indicators..."
+              placeholder="Provide event details, impacted assets, anomalous metrics, or IOC indicators (max 1000 characters)..."
               className="w-full bg-slate-950/80 border border-slate-800 rounded-lg px-3 py-2 text-slate-100 placeholder-slate-500 focus:outline-none focus:border-rose-500 transition-colors resize-none"
             />
           </div>

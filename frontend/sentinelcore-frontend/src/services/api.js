@@ -254,7 +254,7 @@ export async function assignIncident(id, assignedTeam) {
     headers: {
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ assignedTeam }),
+    body: JSON.stringify({ team: assignedTeam }),
   })
 
   if (!response.ok) {

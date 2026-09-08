@@ -84,7 +84,7 @@ function IncidentActionsModal({
         <div className="p-5 border-b border-slate-800 bg-slate-950/60 flex items-center justify-between">
           <div>
             <span className="text-[11px] font-mono text-cyan-400 font-bold">
-              #INC-{incident.id}
+              {incident.incidentId || `#INC-${incident.id}`}
             </span>
             <h2 className="text-base font-bold text-white tracking-tight mt-0.5">
               {getTitle()}
