@@ -9,6 +9,7 @@ import Alerts from "./components/Alerts"
 import CloudMonitoring from "./components/CloudMonitoring"
 import NetworkMonitoring from "./components/NetworkMonitoring"
 import IncidentManagement from "./components/incidents/IncidentManagement"
+import VulnerabilityManagement from "./components/vulnerabilities/VulnerabilityManagement"
 
 function App() {
   // Get the currently logged-in user from localStorage, or supply a default demo user
@@ -31,8 +32,14 @@ function App() {
   })
 
   const [activePage, setActivePage] = useState(() => {
-    if (typeof window !== "undefined" && window.location.pathname.toLowerCase() === "/incidents") {
-      return "Incidents"
+    if (typeof window !== "undefined") {
+      const path = window.location.pathname.toLowerCase()
+      if (path === "/vulnerabilities") {
+        return "Vulnerabilities"
+      }
+      if (path === "/incidents") {
+        return "Incidents"
+      }
     }
     return "Dashboard"
   })
@@ -57,6 +64,15 @@ function App() {
       icon: (
         <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M20.618 5.984A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016zM12 9v2m0 4h.01" />
+        </svg>
+      ),
+    },
+    {
+      name: "Vulnerabilities",
+      description: "Vulnerability Management",
+      icon: (
+        <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.75} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
         </svg>
       ),
     },
@@ -111,7 +127,9 @@ function App() {
     setActivePage(page)
     setSidebarOpen(false)
     if (typeof window !== "undefined" && window.history) {
-      if (page === "Incidents") {
+      if (page === "Vulnerabilities") {
+        window.history.pushState({}, "", "/vulnerabilities")
+      } else if (page === "Incidents") {
         window.history.pushState({}, "", "/incidents")
       } else if (page === "Dashboard") {
         window.history.pushState({}, "", "/")
@@ -272,6 +290,8 @@ function App() {
           )}
 
           {activePage === "Incidents" && <IncidentManagement />}
+
+          {activePage === "Vulnerabilities" && <VulnerabilityManagement />}
 
           {activePage === "Assets" && <Assets />}
 

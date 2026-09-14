@@ -315,3 +315,133 @@ export async function getIncidentAudit(id) {
 
   return response.json()
 }
+
+
+// ===============================
+// VULNERABILITY MANAGEMENT (MILESTONE 3)
+// ===============================
+
+export async function getVulnerabilities() {
+  const response = await fetch(`${API_BASE_URL}/vulnerabilities`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch vulnerabilities (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getVulnerabilityById(id) {
+  const response = await fetch(`${API_BASE_URL}/vulnerabilities/${id}`)
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch vulnerability #${id} (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function createVulnerability(vulnerabilityData) {
+  const response = await fetch(`${API_BASE_URL}/vulnerabilities`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(vulnerabilityData),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to create vulnerability (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function updateVulnerability(id, vulnerabilityData) {
+  const response = await fetch(`${API_BASE_URL}/vulnerabilities/${id}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(vulnerabilityData),
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to update vulnerability #${id} (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function deleteVulnerability(id) {
+  const response = await fetch(`${API_BASE_URL}/vulnerabilities/${id}`, {
+    method: "DELETE",
+  })
+
+  if (!response.ok) {
+    throw new Error(`Failed to delete vulnerability #${id} (HTTP ${response.status})`)
+  }
+
+  return true
+}
+
+export async function updateVulnerabilitySeverity(id, severity, cvssScore) {
+  const payload = { severity }
+  if (cvssScore !== undefined && cvssScore !== null && cvssScore !== "") {
+    payload.cvssScore = Number(cvssScore)
+  }
+
+  const response = await fetch(`${API_BASE_URL}/vulnerabilities/${id}/severity`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to update severity (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function updateVulnerabilityRisk(id, riskScore) {
+  const payload =
+    riskScore !== undefined && riskScore !== null && riskScore !== ""
+      ? { riskScore: Number(riskScore) }
+      : {}
+
+  const response = await fetch(`${API_BASE_URL}/vulnerabilities/${id}/risk`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to update risk score (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function updateVulnerabilityPatch(id, patchedAssets) {
+  const response = await fetch(`${API_BASE_URL}/vulnerabilities/${id}/patch`, {
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ patchedAssets: Number(patchedAssets) }),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to update patch progress (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
