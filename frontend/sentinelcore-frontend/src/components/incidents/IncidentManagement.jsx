@@ -51,8 +51,28 @@ function IncidentManagement() {
 
   // Initial load
   useEffect(() => {
-    fetchIncidents()
-  }, [fetchIncidents])
+    let ignore = false
+
+    getIncidents()
+      .then((data) => {
+        if (!ignore) {
+          setIncidents(Array.isArray(data) ? data : [])
+          setLoading(false)
+        }
+      })
+      .catch((err) => {
+        if (!ignore) {
+          console.error("Failed to fetch incidents from backend:", err)
+          setError(err)
+          setIncidents([])
+          setLoading(false)
+        }
+      })
+
+    return () => {
+      ignore = true
+    }
+  }, [])
 
   // ===============================
   // FILTERED DATASET

@@ -445,3 +445,48 @@ export async function updateVulnerabilityPatch(id, patchedAssets) {
 
   return response.json()
 }
+
+export async function uploadTrivyReport(file) {
+  const formData = new FormData()
+  formData.append("file", file)
+
+  const response = await fetch(`${API_BASE_URL}/scans/trivy`, {
+    method: "POST",
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to upload Trivy scan report (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function uploadSonarReport(file) {
+  const formData = new FormData()
+  formData.append("file", file)
+
+  const response = await fetch(`${API_BASE_URL}/scans/sonarqube`, {
+    method: "POST",
+    body: formData,
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to upload SonarQube scan report (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getVulnerabilityCompliance() {
+  const response = await fetch(`${API_BASE_URL}/vulnerabilities/compliance`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch vulnerability compliance (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}

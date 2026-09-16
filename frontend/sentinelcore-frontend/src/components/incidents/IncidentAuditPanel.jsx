@@ -2,29 +2,18 @@ import { useState, useEffect } from "react"
 import { getIncidentAudit } from "../../services/api"
 
 function IncidentAuditPanel({ incidentId, incidentAuditLogs }) {
-  const [logs, setLogs] = useState(
+  const [logs, setLogs] = useState(() =>
     Array.isArray(incidentAuditLogs) ? incidentAuditLogs : []
   )
-  const [loading, setLoading] = useState(!incidentAuditLogs)
+  const [loading, setLoading] = useState(() => !incidentAuditLogs && !!incidentId)
   const [error, setError] = useState("")
 
   useEffect(() => {
     let ignore = false
 
-    if (!incidentId) {
-      setLoading(false)
+    if (!incidentId || Array.isArray(incidentAuditLogs)) {
       return
     }
-
-    if (Array.isArray(incidentAuditLogs)) {
-      setLogs(incidentAuditLogs)
-      setLoading(false)
-      setError("")
-      return
-    }
-
-    setLoading(true)
-    setError("")
 
     getIncidentAudit(incidentId)
       .then((data) => {

@@ -3,26 +3,15 @@ import { getIncidentSla } from "../../services/api"
 
 function IncidentSlaPanel({ incidentId, incidentSlaData }) {
   const [sla, setSla] = useState(incidentSlaData || null)
-  const [loading, setLoading] = useState(!incidentSlaData)
+  const [loading, setLoading] = useState(() => !incidentSlaData && !!incidentId)
   const [error, setError] = useState("")
 
   useEffect(() => {
     let ignore = false
 
-    if (!incidentId) {
-      setLoading(false)
+    if (!incidentId || incidentSlaData) {
       return
     }
-
-    if (incidentSlaData) {
-      setSla(incidentSlaData)
-      setLoading(false)
-      setError("")
-      return
-    }
-
-    setLoading(true)
-    setError("")
 
     getIncidentSla(incidentId)
       .then((data) => {
