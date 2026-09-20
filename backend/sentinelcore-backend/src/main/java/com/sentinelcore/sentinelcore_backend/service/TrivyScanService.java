@@ -36,9 +36,34 @@ public class TrivyScanService {
             throw new IllegalArgumentException("Invalid JSON report file: " + e.getMessage());
         }
 
+        return processTrivyJson(root, "Trivy", null);
+    }
+
+    public Map<String, Object> processTrivyJsonString(String jsonContent) {
+        return processTrivyJsonString(jsonContent, "Trivy", null);
+    }
+
+    public Map<String, Object> processTrivyJsonString(String jsonContent, String scanSource, String monitoredHost) {
+        if (jsonContent == null || jsonContent.trim().isEmpty()) {
+            throw new IllegalArgumentException("Scan report content is empty or missing");
+        }
+        try {
+            JsonNode root = objectMapper.readTree(jsonContent);
+            return processTrivyJson(root, scanSource, monitoredHost);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid JSON content: " + e.getMessage());
+        }
+    }
+
+    public Map<String, Object> processTrivyJson(JsonNode root) {
+        return processTrivyJson(root, "Trivy", null);
+    }
+
+    public Map<String, Object> processTrivyJson(JsonNode root, String scanSource, String monitoredHost) {
         if (root == null || !root.isObject()) {
             throw new IllegalArgumentException("Invalid Trivy report format: root must be a JSON object");
         }
+
 
         JsonNode resultsNode = root.get("Results");
         if (resultsNode == null || !resultsNode.isArray()) {
@@ -92,6 +117,10 @@ public class TrivyScanService {
                 if (description != null && !pkgName.isEmpty() && !description.contains(pkgName)) {
                     description = "Affected Package: " + pkgName + "\n\n" + description;
                 }
+                if (monitoredHost != null && !monitoredHost.isBlank()) {
+                    String hostNote = "Monitored Host Source: " + monitoredHost + " (Workspace Dependency Scan)";
+                    description = (description != null) ? description + "\n\n" + hostNote : hostNote;
+                }
 
                 // Map Trivy Severity -> existing VulnerabilitySeverity
                 VulnerabilitySeverity severity = mapSeverity(vNode.hasNonNull("Severity") ? vNode.get("Severity").asText() : null);
@@ -120,7 +149,7 @@ public class TrivyScanService {
                 vulnerability.setPatchedAssets(0);
                 vulnerability.setPendingAssets(1);
                 vulnerability.setPatchStatus(PatchStatus.PENDING);
-                vulnerability.setScanSource("Trivy");
+                vulnerability.setScanSource(scanSource != null ? scanSource : "Trivy");
                 vulnerability.setDetectedAt(scanTimestamp);
                 vulnerability.setVulnerabilityId(null); // Leave blank so VulnerabilityService generates VULN-YYYY-NNN
 
@@ -136,8 +165,12 @@ public class TrivyScanService {
 
         Map<String, Object> response = new LinkedHashMap<>();
         response.put("message", "Trivy scan report processed successfully");
-        response.put("scanSource", "Trivy");
+        response.put("scanSource", scanSource != null ? scanSource : "Trivy");
+        if (monitoredHost != null) {
+            response.put("monitoredHost", monitoredHost);
+        }
         response.put("reportId", reportId);
+
         response.put("totalFindings", totalFindings);
         response.put("savedFindings", savedVulnerabilities.size());
         response.put("skippedDuplicates", skippedDuplicates);
@@ -223,8 +256,8 @@ public class TrivyScanService {
 
         for (Vulnerability existing : existingVulns) {
             if (cveId != null && cveId.equalsIgnoreCase(existing.getCveId())) {
-                // Same CVE from Trivy
-                if ("Trivy".equalsIgnoreCase(existing.getScanSource())) {
+                // Same CVE from Trivy (either manual upload or live CLI scan)
+                if (existing.getScanSource() != null && existing.getScanSource().toUpperCase().contains("TRIVY")) {
                     // Check package match if package is known
                     if (pkgName != null && !pkgName.isEmpty()) {
                         String desc = existing.getDescription();

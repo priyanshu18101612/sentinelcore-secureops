@@ -13,10 +13,18 @@ import java.util.List;
 public class InfrastructureMonitoringController {
 
     private final InfrastructureMonitoringService monitoringService;
+    private final com.sentinelcore.sentinelcore_backend.service.PrometheusClientService prometheusClientService;
 
     public InfrastructureMonitoringController(
-            InfrastructureMonitoringService monitoringService) {
+            InfrastructureMonitoringService monitoringService,
+            com.sentinelcore.sentinelcore_backend.service.PrometheusClientService prometheusClientService) {
         this.monitoringService = monitoringService;
+        this.prometheusClientService = prometheusClientService;
+    }
+
+    @GetMapping("/telemetry/status")
+    public ResponseEntity<?> getTelemetryStatus() {
+        return ResponseEntity.ok(prometheusClientService.getTelemetryStatus());
     }
 
     @GetMapping("/metrics")

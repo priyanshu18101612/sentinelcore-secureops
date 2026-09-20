@@ -24,6 +24,9 @@ class TrivyScanControllerTest {
     @MockitoBean
     private TrivyScanService trivyScanService;
 
+    @MockitoBean
+    private com.sentinelcore.sentinelcore_backend.service.LocalScanRunnerService localScanRunnerService;
+
     @Test
     void testUploadTrivyScanSuccess() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
@@ -58,5 +61,36 @@ class TrivyScanControllerTest {
         mockMvc.perform(multipart("/api/scans/trivy").file(emptyFile))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Invalid or empty Trivy report file"));
+    }
+
+    @Test
+    void testRunLocalTrivyScanSuccess() throws Exception {
+        when(localScanRunnerService.runLocalTrivyScan(any())).thenReturn(Map.of(
+                "status", "SUCCESS",
+                "totalFindings", 5,
+                "savedFindings", 5
+        ));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/scans/trivy/run-local")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUCCESS"))
+                .andExpect(jsonPath("$.totalFindings").value(5));
+    }
+
+    @Test
+    void testGetTrivyStatus() throws Exception {
+        when(localScanRunnerService.getTrivyStatus()).thenReturn(Map.of(
+                "installed", true,
+                "tool", "Aqua Trivy",
+                "status", "READY"
+        ));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/scans/trivy/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.installed").value(true))
+                .andExpect(jsonPath("$.tool").value("Aqua Trivy"))
+                .andExpect(jsonPath("$.status").value("READY"));
     }
 }

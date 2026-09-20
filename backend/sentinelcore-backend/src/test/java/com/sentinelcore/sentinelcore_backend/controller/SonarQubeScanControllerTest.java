@@ -24,6 +24,9 @@ class SonarQubeScanControllerTest {
     @MockitoBean
     private SonarQubeScanService sonarQubeScanService;
 
+    @MockitoBean
+    private com.sentinelcore.sentinelcore_backend.service.LocalScanRunnerService localScanRunnerService;
+
     @Test
     void testUploadSonarQubeScanSuccess() throws Exception {
         MockMultipartFile file = new MockMultipartFile(
@@ -58,5 +61,33 @@ class SonarQubeScanControllerTest {
         mockMvc.perform(multipart("/api/scans/sonarqube").file(emptyFile))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("Invalid or empty SonarQube report file"));
+    }
+
+    @Test
+    void testRunLocalSonarScan() throws Exception {
+        when(localScanRunnerService.runLocalSonarScan(any())).thenReturn(Map.of(
+                "status", "OFFLINE",
+                "scannerType", "SonarQube Scanner",
+                "message", "SonarQube scanner is offline"
+        ));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post("/api/scans/sonarqube/run-local")
+                        .contentType(org.springframework.http.MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("OFFLINE"))
+                .andExpect(jsonPath("$.scannerType").value("SonarQube Scanner"));
+    }
+
+    @Test
+    void testGetSonarQubeStatus() throws Exception {
+        when(localScanRunnerService.getSonarQubeStatus()).thenReturn(Map.of(
+                "scannerInstalled", false,
+                "status", "NOT_CONFIGURED"
+        ));
+
+        mockMvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get("/api/scans/sonarqube/status"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("NOT_CONFIGURED"));
     }
 }

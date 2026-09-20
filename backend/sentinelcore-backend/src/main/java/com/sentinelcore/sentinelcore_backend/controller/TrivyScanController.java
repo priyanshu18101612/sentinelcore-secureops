@@ -12,9 +12,13 @@ import java.util.Map;
 public class TrivyScanController {
 
     private final TrivyScanService trivyScanService;
+    private final com.sentinelcore.sentinelcore_backend.service.LocalScanRunnerService localScanRunnerService;
 
-    public TrivyScanController(TrivyScanService trivyScanService) {
+    public TrivyScanController(
+            TrivyScanService trivyScanService,
+            com.sentinelcore.sentinelcore_backend.service.LocalScanRunnerService localScanRunnerService) {
         this.trivyScanService = trivyScanService;
+        this.localScanRunnerService = localScanRunnerService;
     }
 
     @PostMapping("/trivy")
@@ -31,5 +35,20 @@ public class TrivyScanController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to process Trivy scan report: " + e.getMessage()));
         }
+    }
+
+    @PostMapping("/trivy/run-local")
+    public ResponseEntity<?> runLocalTrivyScan(@RequestBody(required = false) Map<String, String> request) {
+        String targetPath = (request != null && request.containsKey("path")) ? request.get("path") : null;
+        Map<String, Object> response = localScanRunnerService.runLocalTrivyScan(targetPath);
+        if ("ERROR".equals(response.get("status"))) {
+            return ResponseEntity.badRequest().body(response);
+        }
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/trivy/status")
+    public ResponseEntity<?> getTrivyStatus() {
+        return ResponseEntity.ok(localScanRunnerService.getTrivyStatus());
     }
 }

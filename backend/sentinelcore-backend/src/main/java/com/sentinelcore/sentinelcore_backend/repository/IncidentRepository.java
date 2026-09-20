@@ -9,4 +9,11 @@ public interface IncidentRepository extends JpaRepository<Incident, Long> {
 
     Optional<Incident> findByIncidentId(String incidentId);
     Optional<Incident> findTopByOrderByIdDesc();
+
+    boolean existsByTitleAndStatusIn(
+            String title,
+            java.util.Collection<com.sentinelcore.sentinelcore_backend.model.IncidentStatus> statuses);
+
+    java.util.List<Incident> findByStatusIn(
+            java.util.Collection<com.sentinelcore.sentinelcore_backend.model.IncidentStatus> statuses);
 }

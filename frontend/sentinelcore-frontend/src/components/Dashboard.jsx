@@ -18,6 +18,7 @@ import {
   getNetworkMetrics,
   getAllInfrastructureMetrics,
   getSla,
+  getTelemetryStatus,
 } from "../services/api"
 import { ErrorState } from "./StatusFeedback"
 
@@ -101,6 +102,9 @@ function Dashboard({ timeRange = "Today" }) {
   const [networkMetrics, setNetworkMetrics] = useState([])
   const [infraMetrics, setInfraMetrics] = useState([])
   const [slaData, setSlaData] = useState(null)
+  const [telemetryStatus, setTelemetryStatus] = useState(null)
+  const [autoRefresh, setAutoRefresh] = useState(true)
+  const [showGrafanaEmbed, setShowGrafanaEmbed] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
@@ -110,12 +114,13 @@ function Dashboard({ timeRange = "Today" }) {
     setLoading(true)
     setError(null)
     try {
-      const [assetRes, alertsRes, netRes, infraRes, slaRes] = await Promise.allSettled([
+      const [assetRes, alertsRes, netRes, infraRes, slaRes, teleRes] = await Promise.allSettled([
         getAssets(),
         getAlerts(),
         getNetworkMetrics(),
         getAllInfrastructureMetrics(),
         getSla(),
+        getTelemetryStatus(),
       ])
 
       const anySuccess =
@@ -135,7 +140,10 @@ function Dashboard({ timeRange = "Today" }) {
       setNetworkMetrics(netRes.status === "fulfilled" && Array.isArray(netRes.value) ? netRes.value : [])
       setInfraMetrics(infraRes.status === "fulfilled" && Array.isArray(infraRes.value) ? infraRes.value : [])
       setSlaData(slaRes.status === "fulfilled" && slaRes.value != null ? slaRes.value : null)
-      setLastRefreshed(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))
+      if (teleRes.status === "fulfilled" && teleRes.value != null) {
+        setTelemetryStatus(teleRes.value)
+      }
+      setLastRefreshed(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }))
     } catch (err) {
       console.error("Backend telemetry error:", err)
       setError(err)
@@ -156,51 +164,52 @@ function Dashboard({ timeRange = "Today" }) {
       getNetworkMetrics(),
       getAllInfrastructureMetrics(),
       getSla(),
-    ])
-      .then(([assetRes, alertsRes, netRes, infraRes, slaRes]) => {
-        if (!ignore) {
-          const anySuccess =
-            assetRes.status === "fulfilled" ||
-            alertsRes.status === "fulfilled" ||
-            netRes.status === "fulfilled" ||
-            infraRes.status === "fulfilled"
+      getTelemetryStatus(),
+    ]).then(([assetRes, alertsRes, netRes, infraRes, slaRes, teleRes]) => {
+      if (!ignore) {
+        const anySuccess =
+          assetRes.status === "fulfilled" ||
+          alertsRes.status === "fulfilled" ||
+          netRes.status === "fulfilled" ||
+          infraRes.status === "fulfilled"
 
-          if (!anySuccess) {
-            setError(
-              new Error(
-                "All backend endpoints failed to respond. Please check if Spring Boot is running on http://localhost:8080."
-              )
+        if (!anySuccess) {
+          setError(
+            new Error(
+              "All backend endpoints failed to respond. Please check if Spring Boot is running on http://localhost:8080."
             )
-            setAssets([])
-            setAlerts([])
-            setNetworkMetrics([])
-            setInfraMetrics([])
-          } else {
-            setAssets(assetRes.status === "fulfilled" && Array.isArray(assetRes.value) ? assetRes.value : [])
-            setAlerts(alertsRes.status === "fulfilled" && Array.isArray(alertsRes.value) ? alertsRes.value : [])
-            setNetworkMetrics(netRes.status === "fulfilled" && Array.isArray(netRes.value) ? netRes.value : [])
-            setInfraMetrics(infraRes.status === "fulfilled" && Array.isArray(infraRes.value) ? infraRes.value : [])
-            setSlaData(slaRes.status === "fulfilled" && slaRes.value != null ? slaRes.value : null)
-            setLastRefreshed(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }))
-          }
-          setLoading(false)
-        }
-      })
-      .catch((err) => {
-        if (!ignore) {
-          console.error("Backend telemetry error:", err)
-          setError(err)
+          )
           setAssets([])
           setAlerts([])
           setNetworkMetrics([])
           setInfraMetrics([])
-          setLoading(false)
+        } else {
+          setAssets(assetRes.status === "fulfilled" && Array.isArray(assetRes.value) ? assetRes.value : [])
+          setAlerts(alertsRes.status === "fulfilled" && Array.isArray(alertsRes.value) ? alertsRes.value : [])
+          setNetworkMetrics(netRes.status === "fulfilled" && Array.isArray(netRes.value) ? netRes.value : [])
+          setInfraMetrics(infraRes.status === "fulfilled" && Array.isArray(infraRes.value) ? infraRes.value : [])
+          setSlaData(slaRes.status === "fulfilled" && slaRes.value != null ? slaRes.value : null)
+          if (teleRes.status === "fulfilled" && teleRes.value != null) {
+            setTelemetryStatus(teleRes.value)
+          }
+          setLastRefreshed(new Date().toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" }))
         }
-      })
+        setLoading(false)
+      }
+    })
+
     return () => {
       ignore = true
     }
   }, [])
+
+  useEffect(() => {
+    if (!autoRefresh) return
+    const interval = setInterval(() => {
+      fetchTelemetry()
+    }, 15000)
+    return () => clearInterval(interval)
+  }, [autoRefresh, fetchTelemetry])
 
   // ==========================================================================
   // REAL DERIVED METRICS (Zero Mock Arithmetic)
@@ -461,7 +470,52 @@ function Dashboard({ timeRange = "Today" }) {
         </div>
 
         {/* Action Toolbar */}
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Live Polling Toggle */}
+          <button
+            onClick={() => setAutoRefresh(!autoRefresh)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg border transition-all cursor-pointer ${
+              autoRefresh
+                ? "bg-emerald-500/15 border-emerald-500/40 text-emerald-300 hover:bg-emerald-500/25"
+                : "bg-slate-800/80 border-slate-700/60 text-slate-400 hover:bg-slate-700/80"
+            }`}
+            title="Toggle automatic 15-second telemetry polling"
+          >
+            <span className={`w-2 h-2 rounded-full ${autoRefresh ? "bg-emerald-400 animate-pulse" : "bg-slate-500"}`} />
+            <span>Polling: {autoRefresh ? "15s LIVE" : "PAUSED"}</span>
+          </button>
+
+          {/* Open Grafana Button */}
+          <a
+            href="http://localhost:3000/d/sentinelcore-host"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium bg-amber-500/10 hover:bg-amber-500/20 text-amber-300 border border-amber-500/30 rounded-lg transition-all shadow-sm"
+            title="Open Grafana Host Infrastructure Dashboard on http://localhost:3000/d/sentinelcore-host"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
+            </svg>
+            <span>Open Grafana (:3000)</span>
+          </a>
+
+          {/* Toggle Embedded Grafana Panel */}
+          <button
+            onClick={() => setShowGrafanaEmbed(!showGrafanaEmbed)}
+            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg border transition-all cursor-pointer ${
+              showGrafanaEmbed
+                ? "bg-amber-500/20 border-amber-500/50 text-amber-300"
+                : "bg-slate-800/80 border-slate-700/60 text-slate-300 hover:bg-slate-700/80"
+            }`}
+            title="Toggle Embedded Grafana telemetry view"
+          >
+            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16m-7 6h7" />
+            </svg>
+            <span>{showGrafanaEmbed ? "Hide Embed" : "Embed Grafana"}</span>
+          </button>
+
+          {/* Manual Refresh Button */}
           <button
             onClick={fetchTelemetry}
             disabled={loading}
@@ -480,6 +534,116 @@ function Dashboard({ timeRange = "Today" }) {
           </button>
         </div>
       </div>
+
+      {/* Optional Embedded Grafana Panel with Fallback Card */}
+      {showGrafanaEmbed && (
+        <div className="bg-slate-900 border border-slate-800 rounded-xl p-4 shadow-lg space-y-3">
+          <div className="flex items-center justify-between border-b border-slate-800 pb-2">
+            <div className="flex items-center gap-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+              <h4 className="text-xs font-bold text-white uppercase tracking-wider">
+                Embedded Grafana Dashboard: SentinelCore Host Overview
+              </h4>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className="text-[11px] text-slate-400">
+                Port :3000
+              </span>
+              <a
+                href="http://localhost:3000/d/sentinelcore-host"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-amber-400 hover:text-amber-300 underline font-medium"
+              >
+                Open in Full Window ↗
+              </a>
+            </div>
+          </div>
+
+          <div className="relative w-full h-[520px] bg-slate-950 rounded-lg overflow-hidden border border-slate-800">
+            <iframe
+              src="http://localhost:3000/d/sentinelcore-host?kiosk"
+              title="Grafana Host Dashboard"
+              className="w-full h-full border-0"
+            />
+            <div className="absolute bottom-2 right-2 bg-slate-900/90 border border-slate-700 px-3 py-1.5 rounded text-[11px] text-slate-400 shadow">
+              <span>If dashboard does not render due to browser frame policies, </span>
+              <a href="http://localhost:3000/d/sentinelcore-host" target="_blank" rel="noopener noreferrer" className="text-amber-400 underline font-semibold">
+                launch directly here
+              </a>.
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Live Host Telemetry Status Pill Banner */}
+      {telemetryStatus && (
+        <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-2.5 rounded-xl bg-slate-900/90 border border-slate-800 shadow-inner text-xs">
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="flex items-center gap-2">
+              <span className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              </span>
+              <span className="font-bold text-slate-200 tracking-wide">
+                {telemetryStatus.hostName || "LOCAL-WORKSTATION"}
+              </span>
+              <span className="text-slate-500">·</span>
+              <span className="text-slate-400">{telemetryStatus.osName}</span>
+              {telemetryStatus.availableProcessors && (
+                <span className="px-1.5 py-0.5 rounded bg-slate-800 text-slate-400 font-mono text-[11px]">
+                  {telemetryStatus.availableProcessors} vCPUs
+                </span>
+              )}
+            </div>
+
+            <div className="hidden sm:flex items-center gap-2 text-slate-400 border-l border-slate-800 pl-3">
+              <span>Source:</span>
+              <span className="font-medium text-slate-300">{telemetryStatus.telemetrySource}</span>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2 font-mono text-[11px]">
+            <span
+              className={`px-2.5 py-0.5 rounded-full border flex items-center gap-1.5 ${
+                !telemetryStatus.fallback
+                  ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400 font-semibold"
+                  : "bg-amber-500/10 border-amber-500/30 text-amber-300 font-semibold"
+              }`}
+              title={telemetryStatus.fallbackReason || "Primary telemetry from Prometheus & windows_exporter"}
+            >
+              <span className={`w-1.5 h-1.5 rounded-full ${!telemetryStatus.fallback ? "bg-emerald-400" : "bg-amber-400"}`} />
+              {!telemetryStatus.fallback
+                ? "Prometheus :9090 (Primary)"
+                : "FALLBACK: Host OS (Prometheus Offline)"}
+            </span>
+
+            {telemetryStatus.windowsExporterConnected && (
+              <span className="px-2 py-0.5 rounded-full border bg-cyan-500/10 border-cyan-500/30 text-cyan-400">
+                windows_exporter :9182
+              </span>
+            )}
+
+            {telemetryStatus.blackboxExporterConnected && (
+              <span className="px-2 py-0.5 rounded-full border bg-emerald-500/10 border-emerald-500/30 text-emerald-400">
+                blackbox_exporter :9115
+              </span>
+            )}
+
+            {telemetryStatus.currentNetworkLatency != null && (
+              <span className="text-slate-400 hidden lg:inline ml-1">
+                RTT: <span className="text-emerald-400 font-semibold">{telemetryStatus.currentNetworkLatency} ms</span>
+              </span>
+            )}
+
+            {telemetryStatus.uptime && (
+              <span className="text-slate-400 hidden md:inline ml-1">
+                Uptime: <span className="text-slate-200">{telemetryStatus.uptime}</span>
+              </span>
+            )}
+          </div>
+        </div>
+      )}
 
       {error && (
         <ErrorState

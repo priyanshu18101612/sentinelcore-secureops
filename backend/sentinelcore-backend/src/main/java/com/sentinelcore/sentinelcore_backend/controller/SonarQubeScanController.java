@@ -1,5 +1,6 @@
 package com.sentinelcore.sentinelcore_backend.controller;
 
+import com.sentinelcore.sentinelcore_backend.service.LocalScanRunnerService;
 import com.sentinelcore.sentinelcore_backend.service.SonarQubeScanService;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -12,9 +13,13 @@ import java.util.Map;
 public class SonarQubeScanController {
 
     private final SonarQubeScanService sonarQubeScanService;
+    private final LocalScanRunnerService localScanRunnerService;
 
-    public SonarQubeScanController(SonarQubeScanService sonarQubeScanService) {
+    public SonarQubeScanController(
+            SonarQubeScanService sonarQubeScanService,
+            LocalScanRunnerService localScanRunnerService) {
         this.sonarQubeScanService = sonarQubeScanService;
+        this.localScanRunnerService = localScanRunnerService;
     }
 
     @PostMapping("/sonarqube")
@@ -31,5 +36,17 @@ public class SonarQubeScanController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("error", "Failed to process SonarQube report: " + e.getMessage()));
         }
+    }
+
+    @PostMapping("/sonarqube/run-local")
+    public ResponseEntity<?> runLocalSonarScan(@RequestBody(required = false) Map<String, String> request) {
+        String targetPath = (request != null && request.containsKey("path")) ? request.get("path") : null;
+        Map<String, Object> response = localScanRunnerService.runLocalSonarScan(targetPath);
+        return ResponseEntity.ok(response);
+    }
+
+    @GetMapping("/sonarqube/status")
+    public ResponseEntity<?> getSonarQubeStatus() {
+        return ResponseEntity.ok(localScanRunnerService.getSonarQubeStatus());
     }
 }

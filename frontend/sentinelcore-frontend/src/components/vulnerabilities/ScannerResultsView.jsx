@@ -1,5 +1,12 @@
-import { useState, useRef, useMemo } from "react"
-import { uploadTrivyReport, uploadSonarReport } from "../../services/api"
+import { useState, useRef, useMemo, useEffect } from "react"
+import {
+  uploadTrivyReport,
+  uploadSonarReport,
+  runLocalTrivyScan,
+  runLocalSonarScan,
+  getTrivyStatus,
+  getSonarStatus,
+} from "../../services/api"
 
 function getSeverityBadge(severity) {
   const sev = (severity || "").toUpperCase()
@@ -55,9 +62,76 @@ function ScannerResultsView({
   const trivyFileInputRef = useRef(null)
   const sonarFileInputRef = useRef(null)
   const [uploadingScanner, setUploadingScanner] = useState(null) // null | "trivy" | "sonarqube"
+  const [runningLiveScan, setRunningLiveScan] = useState(false)
+  const [runningSonarScan, setRunningSonarScan] = useState(false)
+  const [trivyStatus, setTrivyStatus] = useState(null)
+  const [sonarStatus, setSonarStatus] = useState(null)
   const [uploadError, setUploadError] = useState(null)
   const [uploadSuccess, setUploadSuccess] = useState(null)
   const [selectedScannerFilter, setSelectedScannerFilter] = useState("ALL") // "ALL" | "TRIVY" | "SONARQUBE"
+
+  useEffect(() => {
+    getTrivyStatus().then(setTrivyStatus).catch(() => null)
+    getSonarStatus().then(setSonarStatus).catch(() => null)
+  }, [])
+
+  const handleRunLiveTrivyScan = async () => {
+    setRunningLiveScan(true)
+    setUploadError(null)
+    setUploadSuccess(null)
+
+    try {
+      const result = await runLocalTrivyScan()
+      const total = result.totalFindings ?? 0
+      const saved = result.savedFindings ?? 0
+      const skipped = result.skippedDuplicates ?? 0
+
+      setUploadSuccess(
+        `Live system scan completed successfully via Aqua Trivy CLI! Discovered ${total} finding${
+          total === 1 ? "" : "s"
+        } (${saved} newly ingested, ${skipped} duplicate${
+          skipped === 1 ? "" : "s"
+        } synchronized). Bound to ${result.monitoredHost || "LOCAL-WORKSTATION-HOST"}.`
+      )
+
+      if (onRefresh) {
+        await onRefresh()
+      }
+      getTrivyStatus().then(setTrivyStatus).catch(() => null)
+    } catch (err) {
+      console.error("Live Trivy scan failed:", err)
+      setUploadError(err.message || "Failed to execute live Trivy scan.")
+    } finally {
+      setRunningLiveScan(false)
+    }
+  }
+
+  const handleRunLiveSonarScan = async () => {
+    setRunningSonarScan(true)
+    setUploadError(null)
+    setUploadSuccess(null)
+
+    try {
+      const result = await runLocalSonarScan()
+      if (result.status === "OFFLINE" || result.status === "NOT_CONFIGURED") {
+        setUploadSuccess(
+          `SonarQube Scanner is ${result.status}: ${result.message || "Offline"}. No automated installation was attempted per system safeguards.`
+        )
+      } else {
+        setUploadSuccess(`SonarQube live scan completed in ${result.durationMs}ms!`)
+        if (onRefresh) {
+          await onRefresh()
+        }
+      }
+      getSonarStatus().then(setSonarStatus).catch(() => null)
+    } catch (err) {
+      console.error("Live SonarQube scan failed:", err)
+      setUploadError(err.message || "Failed to execute live SonarQube scan.")
+    } finally {
+      setRunningSonarScan(false)
+    }
+  }
+
 
   const handleTrivyFileChange = async (e) => {
     const file = e.target.files?.[0]
@@ -292,15 +366,80 @@ function ScannerResultsView({
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   POST /api/scans/trivy (Active)
                 </span>
-                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 font-mono">
-                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                  POST /api/scans/sonarqube (Active)
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-purple-500/20 text-purple-300 border border-purple-500/40 font-mono">
+                  <span className="w-1.5 h-1.5 rounded-full bg-purple-400 animate-pulse" />
+                  Aqua Trivy CLI: {trivyStatus?.status === "READY" ? `READY (v${trivyStatus.version || "0.74.0"})` : "CHECKING"}
+                </span>
+                <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded font-mono ${
+                  sonarStatus?.status === "READY"
+                    ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/40"
+                    : "bg-amber-500/20 text-amber-300 border border-amber-500/40"
+                }`}>
+                  <span className={`w-1.5 h-1.5 rounded-full ${sonarStatus?.status === "READY" ? "bg-emerald-400" : "bg-amber-400"}`} />
+                  SonarQube: {sonarStatus?.status || "OFFLINE / NOT_CONFIGURED"}
+                </span>
+                <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded bg-slate-800 text-slate-400 border border-slate-700 font-mono">
+                  Host Target: {trivyStatus?.monitoredHostSource || "LOCAL-WORKSTATION-HOST"}
                 </span>
               </div>
             </div>
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 flex-shrink-0 w-full lg:w-auto">
+            {/* Run Live System Scan Button (Trivy) */}
+            <button
+              onClick={handleRunLiveTrivyScan}
+              disabled={runningLiveScan || runningSonarScan || uploadingScanner !== null}
+              className={`inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition shadow-lg ${
+                runningLiveScan
+                  ? "bg-purple-900/60 text-purple-200 border border-purple-500/40 cursor-wait"
+                  : "bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-500 hover:to-indigo-500 text-white shadow-purple-600/25 cursor-pointer"
+              }`}
+              title="Execute Aqua Trivy security scanner on local project filesystem"
+            >
+              {runningLiveScan ? (
+                <>
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span>Scanning Local Repository...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 text-purple-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Run Live Trivy Scan</span>
+                </>
+              )}
+            </button>
+
+            {/* Run Live SonarQube Scan Button */}
+            <button
+              onClick={handleRunLiveSonarScan}
+              disabled={runningLiveScan || runningSonarScan || uploadingScanner !== null}
+              className={`inline-flex items-center justify-center gap-2 px-3.5 py-2.5 rounded-xl font-semibold text-xs transition shadow-lg ${
+                runningSonarScan
+                  ? "bg-cyan-900/60 text-cyan-200 border border-cyan-500/40 cursor-wait"
+                  : "bg-gradient-to-r from-teal-600 to-cyan-600 hover:from-teal-500 hover:to-cyan-500 text-white shadow-cyan-600/25 cursor-pointer"
+              }`}
+              title="Trigger live SonarQube code scan or verify scanner status"
+            >
+              {runningSonarScan ? (
+                <>
+                  <div className="w-3.5 h-3.5 rounded-full border-2 border-white border-t-transparent animate-spin" />
+                  <span>Checking SonarQube...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-4 h-4 text-cyan-200" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                  </svg>
+                  <span>Run Live SonarQube Scan</span>
+                </>
+              )}
+            </button>
+
+
             {/* Upload Trivy Report Button */}
             <button
               onClick={() => trivyFileInputRef.current?.click()}

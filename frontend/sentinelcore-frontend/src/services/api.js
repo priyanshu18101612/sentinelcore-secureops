@@ -490,3 +490,332 @@ export async function getVulnerabilityCompliance() {
 
   return response.json()
 }
+
+// ===============================
+// MILESTONE 4: AUDIT & COMPLIANCE
+// ===============================
+
+export async function getAuditLogs(params = {}) {
+  const query = new URLSearchParams()
+  if (params.category) query.append("category", params.category)
+  if (params.entityType) query.append("entityType", params.entityType)
+  if (params.search) query.append("search", params.search)
+
+  const url = `${API_BASE_URL}/audit/logs${query.toString() ? `?${query.toString()}` : ""}`
+  const response = await fetch(url)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch audit logs (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function verifyAuditChain() {
+  const response = await fetch(`${API_BASE_URL}/audit/verify-chain`, {
+    method: "POST",
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to verify audit chain (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getAuditStats() {
+  const response = await fetch(`${API_BASE_URL}/audit/stats`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch audit stats (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getComplianceFrameworks() {
+  const response = await fetch(`${API_BASE_URL}/compliance/frameworks`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch compliance frameworks (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getComplianceFrameworkDetail(framework) {
+  const response = await fetch(`${API_BASE_URL}/compliance/frameworks/${encodeURIComponent(framework)}`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch framework details (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function evaluateComplianceFrameworks() {
+  const response = await fetch(`${API_BASE_URL}/compliance/evaluate`, {
+    method: "POST",
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to evaluate compliance frameworks (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getAccessTracking() {
+  const response = await fetch(`${API_BASE_URL}/access/tracking`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch access tracking (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function logAccessEvent(eventData) {
+  const response = await fetch(`${API_BASE_URL}/access/log-event`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(eventData),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to log access event (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getCurrentSecurityReview() {
+  const response = await fetch(`${API_BASE_URL}/security-reviews/current`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch current security review (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function signOffSecurityReview(signOffData) {
+  const response = await fetch(`${API_BASE_URL}/security-reviews/sign-off`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(signOffData || {}),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to sign off security review (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getReports() {
+  const response = await fetch(`${API_BASE_URL}/reports`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch reports (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getReportById(id) {
+  const response = await fetch(`${API_BASE_URL}/reports/${id}`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch report #${id} (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function generateReport(reportData) {
+  const response = await fetch(`${API_BASE_URL}/reports/generate`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(reportData || {}),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to generate report (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getDevSecOpsPosture() {
+  const response = await fetch(`${API_BASE_URL}/devsecops/posture`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch DevSecOps posture (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+// ===============================
+// REAL SYSTEM TELEMETRY & LIVE SCANS
+// ===============================
+
+export async function getTelemetryStatus() {
+  const response = await fetch(`${API_BASE_URL}/infrastructure/telemetry/status`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch telemetry status (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function runLocalTrivyScan(path) {
+  const response = await fetch(`${API_BASE_URL}/scans/trivy/run-local`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(path ? { path } : {}),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to execute local Trivy scan (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getTrivyStatus() {
+  const response = await fetch(`${API_BASE_URL}/scans/trivy/status`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch Trivy scanner status (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function runLocalSonarScan(path) {
+  const response = await fetch(`${API_BASE_URL}/scans/sonarqube/run-local`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(path ? { path } : {}),
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to execute local SonarQube scan (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function getSonarStatus() {
+  const response = await fetch(`${API_BASE_URL}/scans/sonarqube/status`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch SonarQube scanner status (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+// ===============================
+// CROSS-MILESTONE CORRELATION & DEVSECOPS (PHASE 5)
+// ===============================
+
+export async function getHostCorrelation() {
+  const response = await fetch(`${API_BASE_URL}/devsecops/host-correlation`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch host correlation (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function triggerFullSystemAudit(path) {
+  const response = await fetch(`${API_BASE_URL}/devsecops/full-system-audit`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(path ? { path } : {}),
+  })
+
+  const data = await response.json().catch(() => ({}))
+
+  if (response.status === 409 || data.status === "ALREADY_RUNNING") {
+    return {
+      status: "ALREADY_RUNNING",
+      message: data.message || "A full system audit is currently running. Please wait for it to finish.",
+    }
+  }
+
+  if (!response.ok) {
+    throw new Error(data.message || data.error || `Failed to execute full system audit (HTTP ${response.status})`)
+  }
+
+  return data
+}
+
+// ===============================
+// GOVERNANCE & REMEDIATION ADVISORY (PHASE 6)
+// ===============================
+
+export async function getRemediationAdvisories() {
+  const response = await fetch(`${API_BASE_URL}/devsecops/remediation-advisories`)
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to fetch remediation advisories (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export async function verifyReportAttestation(reportId) {
+  const response = await fetch(`${API_BASE_URL}/reports/${reportId}/verify-attestation`, {
+    method: "POST",
+  })
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}))
+    throw new Error(errorData.error || `Failed to verify report attestation (HTTP ${response.status})`)
+  }
+
+  return response.json()
+}
+
+export function getReportAttestationBundleUrl(reportId) {
+  return `${API_BASE_URL}/reports/${reportId}/attestation-bundle`
+}
